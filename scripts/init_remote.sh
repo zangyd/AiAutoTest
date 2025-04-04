@@ -41,18 +41,23 @@ ensure_directory "/data/projects/autotest"
 ensure_directory "/data/logs/autotest"
 ensure_directory "/data/backup/autotest"
 
-# 安装系统Python3（用于yum）
-log "安装系统Python3..."
-dnf install -y python3 python3-libs python3-devel
+# 下载并安装基础Python RPM包
+log "安装基础Python RPM包..."
+cd /tmp
+wget https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/python3-3.6.8-47.el8.x86_64.rpm
+wget https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/python3-libs-3.6.8-47.el8.x86_64.rpm
+wget https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/python3-devel-3.6.8-47.el8.x86_64.rpm
 
-# 更新系统包
-log "更新系统包..."
-dnf update -y
+rpm -ivh --nodeps python3-3.6.8-47.el8.x86_64.rpm
+rpm -ivh --nodeps python3-libs-3.6.8-47.el8.x86_64.rpm
+rpm -ivh --nodeps python3-devel-3.6.8-47.el8.x86_64.rpm
 
 # 安装编译工具和依赖
 log "安装编译工具和依赖..."
-dnf groupinstall -y "Development Tools"
-dnf install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel wget
+rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/gcc-8.5.0-17.el8.x86_64.rpm
+rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/gcc-c++-8.5.0-17.el8.x86_64.rpm
+rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/make-4.2.1-11.el8.x86_64.rpm
+rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/wget-1.19.5-10.el8.x86_64.rpm
 
 # 安装Python 3.10
 log "开始安装Python 3.10..."
