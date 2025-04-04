@@ -76,4 +76,3 @@ scripts/**/logs/
 
 # Others
 user_temp/
-*.sql
