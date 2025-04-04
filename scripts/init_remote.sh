@@ -227,10 +227,64 @@ setup_virtualenv() {
     deactivate
 }
 
-# 执行Python环境配置
+# Git配置和仓库克隆
+setup_git() {
+    log "配置Git环境..."
+    
+    # 配置Git
+    git config --global user.name "autotest"
+    git config --global user.email "autotest@example.com"
+    
+    # 配置Git使用HTTPS替代SSH
+    git config --global url."https://github.com/".insteadOf git@github.com:
+    
+    # 配置HTTPS代理
+    cat > ~/.gitconfig << EOF
+[http]
+    proxy = 
+[https]
+    proxy = 
+[url "https://ghproxy.com/https://github.com/"]
+    insteadOf = https://github.com/
+EOF
+
+    # 克隆仓库
+    log "克隆代码仓库..."
+    cd /data/projects
+    
+    # 定义多个克隆源
+    REPO_URLS=(
+        "https://github.com/zangyd/AiAutoTest.git"
+        "https://ghproxy.com/https://github.com/zangyd/AiAutoTest.git"
+        "https://hub.fastgit.xyz/zangyd/AiAutoTest.git"
+        "https://mirror.ghproxy.com/https://github.com/zangyd/AiAutoTest.git"
+    )
+    
+    clone_success=false
+    for url in "${REPO_URLS[@]}"; do
+        log "尝试从 ${url} 克隆..."
+        if rm -rf autotest && git clone "${url}" autotest; then
+            clone_success=true
+            log "代码克隆成功"
+            break
+        fi
+        log "克隆失败，尝试下一个源..."
+    done
+    
+    if [ "$clone_success" = false ]; then
+        log "错误: 所有源都无法克隆代码"
+        exit 1
+    fi
+    
+    # 设置目录权限
+    chmod -R 755 autotest
+}
+
+# 在Python环境配置后添加Git配置
 backup_python_deps
 install_python
 setup_virtualenv
+setup_git
 
 echo "Python环境配置完成！"
 
