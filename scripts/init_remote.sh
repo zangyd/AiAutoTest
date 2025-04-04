@@ -46,7 +46,30 @@ yum update -y
 
 # 安装基础工具
 log "安装基础工具..."
-yum install -y git python3 python3-devel gcc make openssl-devel bzip2-devel libffi-devel
+yum install -y git gcc make openssl-devel bzip2-devel libffi-devel wget
+
+# 安装Python 3.10
+log "安装Python 3.10..."
+PYTHON_VERSION="3.10.13"
+cd /tmp
+wget https://npm.taobao.org/mirrors/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz || \
+wget https://repo.huaweicloud.com/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz || \
+wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
+
+tar xzf Python-${PYTHON_VERSION}.tgz
+cd Python-${PYTHON_VERSION}
+./configure --enable-optimizations
+make altinstall
+cd ..
+rm -rf Python-${PYTHON_VERSION}*
+
+# 创建软链接
+ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
+ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
+
+# 验证Python版本
+log "Python版本信息:"
+python3 --version
 
 # 安装Docker
 log "安装Docker..."
@@ -80,12 +103,23 @@ fi
 log "配置Python环境..."
 cd /data/projects/autotest/backend
 
+# 安装venv模块
+python3 -m pip install --upgrade pip virtualenv
+
 # 检查并创建虚拟环境
 if [ ! -d "venv" ]; then
-    python3 -m venv venv
+    python3 -m virtualenv venv
 fi
 
 source venv/bin/activate
+
+# 配置pip源为阿里云
+mkdir -p ~/.pip
+cat > ~/.pip/pip.conf << EOF
+[global]
+index-url = https://mirrors.aliyun.com/pypi/simple/
+trusted-host = mirrors.aliyun.com
+EOF
 
 # 安装项目依赖
 log "安装项目依赖..."
