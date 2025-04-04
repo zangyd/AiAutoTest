@@ -18,7 +18,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "自动化测试平台API服务"}
+    return {"message": "Hello World"}
 
 if __name__ == "__main__":
     import uvicorn

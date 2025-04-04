@@ -37,6 +37,10 @@ class TestUtils:
         return {
             'platformName': os.environ.get('PLATFORM_NAME', 'Android'),
             'deviceName': os.environ.get('DEVICE_NAME', 'Android Emulator'),
-            'udid': os.environ.get('DEVICE_UDID', ''),
-            'platformVersion': os.environ.get('PLATFORM_VERSION', '')
+            'platformVersion': os.environ.get('PLATFORM_VERSION', '13'),  # Android 13
+            'automationName': os.environ.get('AUTOMATION_NAME', 'UiAutomator2'),
+            'app': os.environ.get('APP_PATH', ''),
+            'noReset': os.environ.get('NO_RESET', 'true').lower() == 'true',
+            'newCommandTimeout': int(os.environ.get('NEW_COMMAND_TIMEOUT', '6000')),
+            'autoGrantPermissions': os.environ.get('AUTO_GRANT_PERMISSIONS', 'true').lower() == 'true'
         } 
