@@ -1,3 +1,8 @@
+# 环境变量
+.env
+.env.local
+.env.*.local
+
 # Python
 __pycache__/
 *.py[cod]
@@ -16,6 +21,7 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -25,8 +31,7 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.env.local
-.env.*.local
+.pnpm-debug.log*
 
 # IDE
 .idea/
@@ -42,7 +47,6 @@ yarn-error.log*
 Thumbs.db
 
 # Project specific
-.env
 *.log
 logs/
 tmp/
@@ -62,6 +66,13 @@ dist/
 build/
 *.tar.gz
 *.zip
+
+# Scripts specific
+scripts/**/*.tmp
+scripts/**/*.temp
+scripts/**/*.log
+scripts/**/temp/
+scripts/**/logs/
 
 # Others
 user_temp/

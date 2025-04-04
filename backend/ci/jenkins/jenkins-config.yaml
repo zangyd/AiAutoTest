@@ -1,0 +1,67 @@
+# Jenkins基础配置
+jenkins:
+  # 系统配置
+  system:
+    home: "E:/Jenkins"  # Jenkins主目录
+    port: 8090         # Jenkins端口
+    prefix: "/jenkins"  # URL前缀
+    
+  # 安全配置
+  security:
+    realm: "jenkins"
+    adminUser: "admin"
+    adminEmail: "admin@example.com"
+    
+  # 工具配置
+  tools:
+    jdk:
+      name: "JDK-17"
+      home: "E:/Java/jdk-17"
+    maven:
+      name: "Maven-3.9"
+      home: "E:/Maven/apache-maven-3.9.0"
+    git:
+      name: "Git"
+      home: "C:/Program Files/Git/bin/git.exe"
+      
+  # 插件配置
+  plugins:
+    required:
+      - git
+      - pipeline
+      - blueocean
+      - docker
+      - python
+      - nodejs
+      - credentials
+      - workspace-cleanup
+      - timestamper
+      - ansicolor
+      
+  # 节点配置
+  nodes:
+    master:
+      name: "master"
+      description: "Jenkins主节点"
+      remoteFS: "E:/Jenkins/workspace"
+      numExecutors: 2
+      labels: "master windows python nodejs"
+      
+  # 流水线配置
+  pipeline:
+    shared_libraries:
+      - name: "test-utils"
+        repository: "https://github.com/your-org/test-utils.git"
+        defaultVersion: "main"
+        
+  # 通知配置
+  notifications:
+    email:
+      smtp_host: "smtp.example.com"
+      smtp_port: 587
+      username: "jenkins@example.com"
+      
+  # 备份配置
+  backup:
+    directory: "E:/Jenkins/backup"
+    retention: 7  # 保留天数 
