@@ -126,62 +126,49 @@ backup_python_deps() {
     fi
 }
 
-# 移除旧版本Python
-log "移除旧版本Python..."
-yum remove -y python3 python3-devel python3-pip python3-setuptools
-
 # 安装Python 3.10
 install_python() {
     log "开始安装Python 3.10..."
     
     # 安装编译依赖
+    log "安装编译依赖..."
     yum groupinstall -y "Development Tools"
     yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel wget
-    
+
     # 下载Python源码（使用国内镜像）
+    log "下载Python源码..."
     cd /tmp
-    wget https://mirrors.huaweicloud.com/python/3.10.13/Python-3.10.13.tgz
+    if [ -f "Python-3.10.13.tgz" ]; then
+        log "发现已下载的源码包，跳过下载..."
+    else
+        wget https://mirrors.huaweicloud.com/python/3.10.13/Python-3.10.13.tgz
+    fi
+    
+    # 解压并编译
+    log "解压源码..."
     tar xzf Python-3.10.13.tgz
     cd Python-3.10.13
     
-    # 配置和编译安装
-    ./configure --enable-optimizations
+    # 配置安装到独立目录
+    log "配置Python..."
+    ./configure --prefix=/usr/local/python3.10 \
+                --enable-optimizations \
+                --with-ensurepip=install \
+                --enable-loadable-sqlite-extensions \
+                --with-system-ffi
+    
+    # 编译和安装
+    log "编译和安装Python..."
     make -j $(nproc)
     make install
+
+    # 创建软链接，但不覆盖系统Python
+    log "创建软链接..."
+    ln -sf /usr/local/python3.10/bin/python3.10 /usr/local/bin/python3.10
+    ln -sf /usr/local/python3.10/bin/pip3.10 /usr/local/bin/pip3.10
     
-    # 创建软链接
-    ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
-    ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
-    
-    # 安装pip
-    log "安装pip..."
-    PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
-    PYTHON_VERSION=$(python3 -V 2>&1 | awk '{print $2}' | cut -d. -f1,2)
-
-    # 根据Python版本选择合适的pip安装脚本
-    case "$PYTHON_VERSION" in
-        "3.6")
-            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.6/get-pip.py"
-            ;;
-        "3.7")
-            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.7/get-pip.py"
-            ;;
-        *)
-            PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
-            ;;
-    esac
-
-    log "使用pip安装脚本: $PIP_SCRIPT_URL"
-    curl -L "$PIP_SCRIPT_URL" -o get-pip.py
-    if [ $? -eq 0 ]; then
-        python3 get-pip.py --no-warn-script-location
-        rm -f get-pip.py
-    else
-        log "错误: 下载pip安装脚本失败"
-        exit 1
-    fi
-
-    # 配置pip源为阿里云
+    # 配置pip
+    log "配置pip..."
     mkdir -p ~/.pip
     cat > ~/.pip/pip.conf << EOF
 [global]
@@ -189,11 +176,16 @@ index-url = https://mirrors.aliyun.com/pypi/simple/
 trusted-host = mirrors.aliyun.com
 EOF
 
-    # 升级pip和安装基础包
-    python3 -m pip install --upgrade pip wheel setuptools virtualenv
+    # 使用新安装的Python安装基础包
+    log "安装基础Python包..."
+    /usr/local/bin/python3.10 -m pip install --upgrade pip setuptools wheel virtualenv
+
+    # 清理安装文件
+    log "清理安装文件..."
+    cd /tmp
+    rm -rf Python-3.10.13*
     
-    cd -
-    rm -rf /tmp/Python-3.10.13*
+    log "Python 3.10 安装完成"
 }
 
 # 创建并配置虚拟环境
@@ -205,18 +197,31 @@ setup_virtualenv() {
     cd /data/projects/autotest/backend
     
     # 删除已存在的虚拟环境
-    rm -rf venv
+    if [ -d "venv" ]; then
+        log "删除已存在的虚拟环境..."
+        rm -rf venv
+    fi
     
-    # 创建新的虚拟环境
-    python3 -m virtualenv venv
+    # 使用Python 3.10创建新的虚拟环境
+    log "创建新的虚拟环境..."
+    /usr/local/bin/python3.10 -m virtualenv venv
     
     # 激活虚拟环境并安装基本包
+    log "安装虚拟环境依赖..."
     source venv/bin/activate
     
     # 如果存在requirements.txt，则安装依赖
     if [ -f "requirements.txt" ]; then
         pip install -r requirements.txt
+    else
+        # 安装基本依赖
+        pip install fastapi uvicorn sqlalchemy pymysql
     fi
+    
+    # 验证安装
+    log "验证Python环境..."
+    python --version
+    pip --version
     
     # 退出虚拟环境
     deactivate
