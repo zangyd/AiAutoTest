@@ -46,30 +46,7 @@ yum update -y
 
 # 安装基础工具
 log "安装基础工具..."
-yum install -y git gcc make openssl-devel bzip2-devel libffi-devel wget
-
-# 安装Python 3.10
-log "安装Python 3.10..."
-PYTHON_VERSION="3.10.13"
-cd /tmp
-wget https://npm.taobao.org/mirrors/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz || \
-wget https://repo.huaweicloud.com/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz || \
-wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz
-
-tar xzf Python-${PYTHON_VERSION}.tgz
-cd Python-${PYTHON_VERSION}
-./configure --enable-optimizations
-make altinstall
-cd ..
-rm -rf Python-${PYTHON_VERSION}*
-
-# 创建软链接
-ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
-ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
-
-# 验证Python版本
-log "Python版本信息:"
-python3 --version
+yum install -y git python3 python3-devel gcc make openssl-devel bzip2-devel libffi-devel
 
 # 安装Docker
 log "安装Docker..."
@@ -99,27 +76,36 @@ else
     exit 1
 fi
 
-# 配置Python环境
-log "配置Python环境..."
-cd /data/projects/autotest/backend
+# 移除旧版本Python
+yum remove -y python3
 
-# 安装venv模块
-python3 -m pip install --upgrade pip virtualenv
+# 安装编译Python所需的依赖
+yum groupinstall -y "Development Tools"
+yum install -y openssl-devel bzip2-devel libffi-devel xz-devel
 
-# 检查并创建虚拟环境
-if [ ! -d "venv" ]; then
-    python3 -m virtualenv venv
-fi
+# 下载并安装Python 3.10
+cd /tmp
+wget https://mirrors.huaweicloud.com/python/3.10.13/Python-3.10.13.tgz
+tar xzf Python-3.10.13.tgz
+cd Python-3.10.13
+./configure --enable-optimizations
+make altinstall
+ln -sf /usr/local/bin/python3.10 /usr/bin/python3
+ln -sf /usr/local/bin/pip3.10 /usr/bin/pip3
 
+# 升级pip
+python3 -m pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/
+
+# 安装virtualenv
+python3 -m pip install virtualenv -i https://mirrors.aliyun.com/pypi/simple/
+
+# 创建项目目录
+mkdir -p /data/projects/autotest
+cd /data/projects/autotest
+
+# 创建并激活虚拟环境
+python3 -m virtualenv venv
 source venv/bin/activate
-
-# 配置pip源为阿里云
-mkdir -p ~/.pip
-cat > ~/.pip/pip.conf << EOF
-[global]
-index-url = https://mirrors.aliyun.com/pypi/simple/
-trusted-host = mirrors.aliyun.com
-EOF
 
 # 安装项目依赖
 log "安装项目依赖..."
