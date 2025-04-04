@@ -33,7 +33,6 @@ check_service() {
     fi
 }
 
-# 开始初始化
 log "开始初始化远程服务器环境..."
 
 # 创建必要的目录
@@ -41,59 +40,13 @@ ensure_directory "/data/projects/autotest"
 ensure_directory "/data/logs/autotest"
 ensure_directory "/data/backup/autotest"
 
-# 下载并安装基础Python RPM包
-log "安装基础Python RPM包..."
-cd /tmp
-wget https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/python3-3.6.8-47.el8.x86_64.rpm
-wget https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/python3-libs-3.6.8-47.el8.x86_64.rpm
-wget https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/python3-devel-3.6.8-47.el8.x86_64.rpm
+# 更新系统包
+log "更新系统包..."
+yum update -y
 
-rpm -ivh --nodeps python3-3.6.8-47.el8.x86_64.rpm
-rpm -ivh --nodeps python3-libs-3.6.8-47.el8.x86_64.rpm
-rpm -ivh --nodeps python3-devel-3.6.8-47.el8.x86_64.rpm
-
-# 安装编译工具和依赖
-log "安装编译工具和依赖..."
-rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/gcc-8.5.0-17.el8.x86_64.rpm
-rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/gcc-c++-8.5.0-17.el8.x86_64.rpm
-rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/make-4.2.1-11.el8.x86_64.rpm
-rpm -ivh --nodeps https://mirrors.aliyun.com/centos/8-stream/BaseOS/x86_64/os/Packages/wget-1.19.5-10.el8.x86_64.rpm
-
-# 安装Python 3.10
-log "开始安装Python 3.10..."
-cd /tmp
-wget https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz
-tar xzf Python-3.10.0.tgz
-cd Python-3.10.0
-./configure --enable-optimizations --prefix=/usr/local/python3.10
-make -j $(nproc)
-make install
-cd ..
-rm -rf Python-3.10.0*
-
-# 验证Python安装
-log "验证Python安装..."
-if ! /usr/local/python3.10/bin/python3 --version; then
-    log "错误: Python3.10 安装失败"
-    exit 1
-fi
-
-# 创建软链接
-ln -sf /usr/local/python3.10/bin/python3 /usr/local/bin/python3
-ln -sf /usr/local/python3.10/bin/pip3 /usr/local/bin/pip3
-
-# 配置pip
-log "配置pip..."
-mkdir -p ~/.pip
-cat > ~/.pip/pip.conf << EOF
-[global]
-index-url = https://mirrors.aliyun.com/pypi/simple/
-trusted-host = mirrors.aliyun.com
-EOF
-
-# 安装基础Python包
-log "安装基础Python包..."
-/usr/local/bin/python3 -m pip install --upgrade pip setuptools wheel virtualenv
+# 安装基础工具
+log "安装基础工具..."
+yum install -y git python3 python3-devel gcc make openssl-devel bzip2-devel libffi-devel
 
 # 安装Docker
 log "安装Docker..."
@@ -177,6 +130,72 @@ backup_python_deps() {
 log "移除旧版本Python..."
 yum remove -y python3 python3-devel python3-pip python3-setuptools
 
+# 安装Python 3.10
+install_python() {
+    log "开始安装Python 3.10..."
+    
+    # 安装编译依赖
+    yum groupinstall -y "Development Tools"
+    yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel wget
+    
+    # 下载Python源码（使用国内镜像）
+    cd /tmp
+    wget https://mirrors.huaweicloud.com/python/3.10.13/Python-3.10.13.tgz
+    tar xzf Python-3.10.13.tgz
+    cd Python-3.10.13
+    
+    # 配置和编译安装
+    ./configure --enable-optimizations
+    make -j $(nproc)
+    make install
+    
+    # 创建软链接
+    ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
+    ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
+    
+    # 安装pip
+    log "安装pip..."
+    PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
+    PYTHON_VERSION=$(python3 -V 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+
+    # 根据Python版本选择合适的pip安装脚本
+    case "$PYTHON_VERSION" in
+        "3.6")
+            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.6/get-pip.py"
+            ;;
+        "3.7")
+            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.7/get-pip.py"
+            ;;
+        *)
+            PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
+            ;;
+    esac
+
+    log "使用pip安装脚本: $PIP_SCRIPT_URL"
+    curl -L "$PIP_SCRIPT_URL" -o get-pip.py
+    if [ $? -eq 0 ]; then
+        python3 get-pip.py --no-warn-script-location
+        rm -f get-pip.py
+    else
+        log "错误: 下载pip安装脚本失败"
+        exit 1
+    fi
+
+    # 配置pip源为阿里云
+    mkdir -p ~/.pip
+    cat > ~/.pip/pip.conf << EOF
+[global]
+index-url = https://mirrors.aliyun.com/pypi/simple/
+trusted-host = mirrors.aliyun.com
+EOF
+
+    # 升级pip和安装基础包
+    python3 -m pip install --upgrade pip wheel setuptools virtualenv
+    
+    cd -
+    rm -rf /tmp/Python-3.10.13*
+}
+
 # 创建并配置虚拟环境
 setup_virtualenv() {
     log "配置Python虚拟环境..."
@@ -205,7 +224,7 @@ setup_virtualenv() {
 
 # 执行Python环境配置
 backup_python_deps
-
+install_python
 setup_virtualenv
 
 echo "Python环境配置完成！"
