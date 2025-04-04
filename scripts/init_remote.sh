@@ -83,43 +83,84 @@ yum remove -y python3
 yum groupinstall -y "Development Tools"
 yum install -y openssl-devel bzip2-devel libffi-devel xz-devel
 
-# 下载并安装Python 3.10
-cd /tmp
-wget https://mirrors.huaweicloud.com/python/3.10.13/Python-3.10.13.tgz
-tar xzf Python-3.10.13.tgz
-cd Python-3.10.13
-./configure --enable-optimizations
-make altinstall
-ln -sf /usr/local/bin/python3.10 /usr/bin/python3
-ln -sf /usr/local/bin/pip3.10 /usr/bin/pip3
+# 安装Python 3.10
+install_python() {
+    echo "开始安装Python 3.10..."
+    
+    # 安装编译依赖
+    yum groupinstall -y "Development Tools"
+    yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel
+    
+    # 下载Python源码（使用国内镜像）
+    cd /tmp
+    wget https://mirrors.huaweicloud.com/python/3.10.13/Python-3.10.13.tgz
+    tar xzf Python-3.10.13.tgz
+    cd Python-3.10.13
+    
+    # 配置和编译安装
+    ./configure --enable-optimizations
+    make -j $(nproc)
+    make install
+    
+    # 创建软链接
+    ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
+    ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
+    
+    # 安装pip
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    python3 get-pip.py --force-reinstall
+    
+    # 配置pip源为阿里云
+    mkdir -p ~/.pip
+    cat > ~/.pip/pip.conf << EOF
+[global]
+index-url = https://mirrors.aliyun.com/pypi/simple/
+trusted-host = mirrors.aliyun.com
+EOF
+    
+    # 升级pip
+    pip3 install --upgrade pip
+    
+    # 安装virtualenv
+    pip3 install virtualenv
+    
+    cd -
+    rm -rf /tmp/Python-3.10.13*
+}
 
-# 升级pip
-python3 -m pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/
+# 创建并配置虚拟环境
+setup_virtualenv() {
+    echo "配置Python虚拟环境..."
+    
+    # 创建项目目录
+    mkdir -p /data/projects/autotest/backend
+    cd /data/projects/autotest/backend
+    
+    # 删除已存在的虚拟环境
+    rm -rf venv
+    
+    # 创建新的虚拟环境
+    python3 -m virtualenv venv
+    
+    # 激活虚拟环境并安装基本包
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install wheel setuptools
+    
+    # 如果存在requirements.txt，则安装依赖
+    if [ -f "requirements.txt" ]; then
+        pip install -r requirements.txt
+    fi
+    
+    # 退出虚拟环境
+    deactivate
+}
 
-# 安装virtualenv
-python3 -m pip install virtualenv -i https://mirrors.aliyun.com/pypi/simple/
+# 执行安装和配置
+install_python
+setup_virtualenv
 
-# 创建项目目录
-mkdir -p /data/projects/autotest
-cd /data/projects/autotest
-
-# 创建并激活虚拟环境
-python3 -m virtualenv venv
-source venv/bin/activate
-
-# 安装项目依赖
-log "安装项目依赖..."
-pip install --upgrade pip
-if [ -d "requirements" ]; then
-    for req in requirements/*.txt; do
-        if [ -f "$req" ]; then
-            log "安装依赖: $req"
-            pip install -r "$req"
-        fi
-    done
-else
-    log "警告: requirements目录不存在"
-fi
+echo "Python环境配置完成！"
 
 # 安装Supervisor
 log "安装Supervisor..."
