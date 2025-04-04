@@ -33,6 +33,61 @@ check_service() {
     fi
 }
 
+# 设置Python环境变量
+export PYTHONPATH=/usr/local/lib/python3.10:/usr/local/lib/python3.10/lib-dynload:/usr/local/lib/python3.10/site-packages
+export PYTHONHOME=/usr/local
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+export PATH=/usr/local/bin:$PATH
+
+# 检查Python安装
+check_python() {
+    if ! command -v python3 &> /dev/null; then
+        log "Python3 未安装，开始安装..."
+        return 1
+    fi
+    
+    PYTHON_VERSION=$(python3 -V 2>&1 | awk '{print $2}')
+    if [[ "$PYTHON_VERSION" != "3.10"* ]]; then
+        log "当前Python版本 ${PYTHON_VERSION} 不是3.10，需要重新安装..."
+        return 1
+    fi
+    
+    log "Python3.10 已正确安装"
+    return 0
+}
+
+# 安装Python 3.10
+install_python() {
+    log "安装Python 3.10..."
+    
+    # 安装编译依赖
+    yum groupinstall -y "Development Tools"
+    yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel
+    
+    # 下载并编译Python
+    cd /tmp
+    curl -O https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz
+    tar xzf Python-3.10.0.tgz
+    cd Python-3.10.0
+    ./configure --enable-optimizations --with-ensurepip=install
+    make -j $(nproc)
+    make install
+    cd ..
+    rm -rf Python-3.10.0*
+    
+    # 创建软链接
+    ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
+    ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
+    
+    # 验证安装
+    python3 --version
+    if [ $? -ne 0 ]; then
+        log "错误: Python3.10 安装失败"
+        exit 1
+    fi
+}
+
+# 开始初始化
 log "开始初始化远程服务器环境..."
 
 # 创建必要的目录
@@ -130,72 +185,6 @@ backup_python_deps() {
 log "移除旧版本Python..."
 yum remove -y python3 python3-devel python3-pip python3-setuptools
 
-# 安装Python 3.10
-install_python() {
-    log "开始安装Python 3.10..."
-    
-    # 安装编译依赖
-    yum groupinstall -y "Development Tools"
-    yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel wget
-    
-    # 下载Python源码（使用国内镜像）
-    cd /tmp
-    wget https://mirrors.huaweicloud.com/python/3.10.13/Python-3.10.13.tgz
-    tar xzf Python-3.10.13.tgz
-    cd Python-3.10.13
-    
-    # 配置和编译安装
-    ./configure --enable-optimizations
-    make -j $(nproc)
-    make install
-    
-    # 创建软链接
-    ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
-    ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
-    
-    # 安装pip
-    log "安装pip..."
-    PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
-    PYTHON_VERSION=$(python3 -V 2>&1 | awk '{print $2}' | cut -d. -f1,2)
-
-    # 根据Python版本选择合适的pip安装脚本
-    case "$PYTHON_VERSION" in
-        "3.6")
-            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.6/get-pip.py"
-            ;;
-        "3.7")
-            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.7/get-pip.py"
-            ;;
-        *)
-            PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
-            ;;
-    esac
-
-    log "使用pip安装脚本: $PIP_SCRIPT_URL"
-    curl -L "$PIP_SCRIPT_URL" -o get-pip.py
-    if [ $? -eq 0 ]; then
-        python3 get-pip.py --no-warn-script-location
-        rm -f get-pip.py
-    else
-        log "错误: 下载pip安装脚本失败"
-        exit 1
-    fi
-
-    # 配置pip源为阿里云
-    mkdir -p ~/.pip
-    cat > ~/.pip/pip.conf << EOF
-[global]
-index-url = https://mirrors.aliyun.com/pypi/simple/
-trusted-host = mirrors.aliyun.com
-EOF
-
-    # 升级pip和安装基础包
-    python3 -m pip install --upgrade pip wheel setuptools virtualenv
-    
-    cd -
-    rm -rf /tmp/Python-3.10.13*
-}
-
 # 创建并配置虚拟环境
 setup_virtualenv() {
     log "配置Python虚拟环境..."
@@ -224,7 +213,10 @@ setup_virtualenv() {
 
 # 执行Python环境配置
 backup_python_deps
-install_python
+
+# 检查并安装Python
+check_python || install_python
+
 setup_virtualenv
 
 echo "Python环境配置完成！"
