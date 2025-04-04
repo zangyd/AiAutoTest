@@ -1,0 +1,38 @@
+# Web框架
+fastapi>=0.68.0
+uvicorn>=0.15.0
+
+# 调试工具
+debugpy>=1.6.7
+python-dotenv>=0.19.0
+
+# 测试工具
+pytest>=7.0.0
+pytest-asyncio>=0.18.0
+httpx>=0.23.0
+pytest-cov>=3.0.0
+
+# 代码质量工具
+black>=22.3.0
+pylint>=2.15.0
+isort>=5.10.0
+
+# 数据库
+sqlalchemy>=1.4.0
+alembic>=1.7.0
+pymysql>=1.0.2
+
+# 工具包
+pydantic>=1.9.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.5
+aiofiles>=0.8.0
+
+# 自动化测试
+selenium>=4.1.0
+playwright>=1.20.0
+appium-python-client>=2.6.0
+pytest-playwright>=0.3.0
+pytest-selenium>=4.0.0
+pytest-xdist>=2.5.0 
