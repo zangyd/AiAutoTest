@@ -227,7 +227,7 @@ setup_virtualenv() {
     deactivate
 }
 
-# Git配置和仓库克隆
+# Git配置
 setup_git() {
     log "配置Git环境..."
     
@@ -248,36 +248,27 @@ setup_git() {
     insteadOf = https://github.com/
 EOF
 
-    # 克隆仓库
-    log "克隆代码仓库..."
-    cd /data/projects
-    
-    # 定义多个克隆源
-    REPO_URLS=(
-        "https://github.com/zangyd/AiAutoTest.git"
-        "https://ghproxy.com/https://github.com/zangyd/AiAutoTest.git"
-        "https://hub.fastgit.xyz/zangyd/AiAutoTest.git"
-        "https://mirror.ghproxy.com/https://github.com/zangyd/AiAutoTest.git"
-    )
-    
-    clone_success=false
-    for url in "${REPO_URLS[@]}"; do
-        log "尝试从 ${url} 克隆..."
-        if rm -rf autotest && git clone "${url}" autotest; then
-            clone_success=true
-            log "代码克隆成功"
-            break
-        fi
-        log "克隆失败，尝试下一个源..."
-    done
-    
-    if [ "$clone_success" = false ]; then
-        log "错误: 所有源都无法克隆代码"
+    # 检查项目目录
+    log "检查项目目录..."
+    cd /data/projects/autotest || {
+        log "错误: 无法进入项目目录"
+        exit 1
+    }
+
+    # 检查Git仓库状态
+    if [ -d ".git" ]; then
+        log "Git仓库已存在，检查状态..."
+        git status || {
+            log "错误: Git仓库状态异常"
+            exit 1
+        }
+    else
+        log "错误: 当前目录不是Git仓库"
         exit 1
     fi
-    
+
     # 设置目录权限
-    chmod -R 755 autotest
+    chmod -R 755 .
 }
 
 # 在Python环境配置后添加Git配置
