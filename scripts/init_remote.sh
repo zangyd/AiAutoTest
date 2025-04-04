@@ -33,60 +33,6 @@ check_service() {
     fi
 }
 
-# 设置Python环境变量
-export PYTHONPATH=/usr/local/lib/python3.10:/usr/local/lib/python3.10/lib-dynload:/usr/local/lib/python3.10/site-packages
-export PYTHONHOME=/usr/local
-export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-export PATH=/usr/local/bin:$PATH
-
-# 检查Python安装
-check_python() {
-    if ! command -v python3 &> /dev/null; then
-        log "Python3 未安装，开始安装..."
-        return 1
-    fi
-    
-    PYTHON_VERSION=$(python3 -V 2>&1 | awk '{print $2}')
-    if [[ "$PYTHON_VERSION" != "3.10"* ]]; then
-        log "当前Python版本 ${PYTHON_VERSION} 不是3.10，需要重新安装..."
-        return 1
-    fi
-    
-    log "Python3.10 已正确安装"
-    return 0
-}
-
-# 安装Python 3.10
-install_python() {
-    log "安装Python 3.10..."
-    
-    # 安装编译依赖
-    yum groupinstall -y "Development Tools"
-    yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel
-    
-    # 下载并编译Python
-    cd /tmp
-    curl -O https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz
-    tar xzf Python-3.10.0.tgz
-    cd Python-3.10.0
-    ./configure --enable-optimizations --with-ensurepip=install
-    make -j $(nproc)
-    make install
-    cd ..
-    rm -rf Python-3.10.0*
-    
-    # 创建软链接
-    ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
-    ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
-    
-    # 验证安装
-    python3 --version
-    if [ $? -ne 0 ]; then
-        log "错误: Python3.10 安装失败"
-        exit 1
-    fi
-}
-
 # 开始初始化
 log "开始初始化远程服务器环境..."
 
@@ -99,9 +45,46 @@ ensure_directory "/data/backup/autotest"
 log "更新系统包..."
 yum update -y
 
-# 安装基础工具
-log "安装基础工具..."
-yum install -y git python3 python3-devel gcc make openssl-devel bzip2-devel libffi-devel
+# 安装编译工具和依赖
+log "安装编译工具和依赖..."
+yum groupinstall -y "Development Tools"
+yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel wget
+
+# 安装Python 3.10
+log "开始安装Python 3.10..."
+cd /tmp
+wget https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz
+tar xzf Python-3.10.0.tgz
+cd Python-3.10.0
+./configure --enable-optimizations
+make -j $(nproc)
+make install
+cd ..
+rm -rf Python-3.10.0*
+
+# 验证Python安装
+log "验证Python安装..."
+if ! /usr/local/bin/python3 --version; then
+    log "错误: Python3.10 安装失败"
+    exit 1
+fi
+
+# 创建软链接
+ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
+ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
+
+# 配置pip
+log "配置pip..."
+mkdir -p ~/.pip
+cat > ~/.pip/pip.conf << EOF
+[global]
+index-url = https://mirrors.aliyun.com/pypi/simple/
+trusted-host = mirrors.aliyun.com
+EOF
+
+# 安装基础Python包
+log "安装基础Python包..."
+/usr/local/bin/python3 -m pip install --upgrade pip setuptools wheel virtualenv
 
 # 安装Docker
 log "安装Docker..."
@@ -213,9 +196,6 @@ setup_virtualenv() {
 
 # 执行Python环境配置
 backup_python_deps
-
-# 检查并安装Python
-check_python || install_python
 
 setup_virtualenv
 
