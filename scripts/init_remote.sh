@@ -51,11 +51,31 @@ yum install -y git python3 python3-devel gcc make openssl-devel bzip2-devel libf
 # 安装Docker
 log "安装Docker..."
 yum install -y yum-utils
-yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+# 使用阿里云Docker源
+yum-config-manager --add-repo http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+
+# 更新yum缓存
+yum makecache
+
+# 安装Docker
 yum install -y docker-ce docker-ce-cli containerd.io
+
+# 配置Docker镜像加速
+mkdir -p /etc/docker
+cat > /etc/docker/daemon.json << EOF
+{
+  "registry-mirrors": [
+    "https://hub-mirror.c.163.com",
+    "https://mirror.baidubce.com",
+    "https://mirror.ccs.tencentyun.com"
+  ]
+}
+EOF
 
 # 启动Docker服务
 log "启动Docker服务..."
+systemctl daemon-reload
 systemctl start docker
 systemctl enable docker
 check_service docker
@@ -63,17 +83,23 @@ check_service docker
 # 安装Docker Compose
 log "安装Docker Compose..."
 DOCKER_COMPOSE_VERSION="v2.20.0"
-# 使用国内镜像源
-curl -L "https://get.daocloud.io/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose || \
-curl -L "https://mirror.azure.cn/docker-toolbox/linux/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose || \
-curl -L "https://ghproxy.com/https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+# 使用阿里云镜像源
+curl -L "https://get.daocloud.io/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 
 if [ $? -eq 0 ]; then
     chmod +x /usr/local/bin/docker-compose
     log "Docker Compose 安装成功"
 else
-    log "错误: Docker Compose 安装失败"
-    exit 1
+    log "尝试备用下载源..."
+    # 备用下载源
+    curl -L "https://mirror.azure.cn/docker-toolbox/linux/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    if [ $? -eq 0 ]; then
+        chmod +x /usr/local/bin/docker-compose
+        log "Docker Compose 安装成功（使用备用源）"
+    else
+        log "错误: Docker Compose 安装失败"
+        exit 1
+    fi
 fi
 
 # 检查并备份系统Python依赖
