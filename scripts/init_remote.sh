@@ -154,9 +154,33 @@ install_python() {
     ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
     
     # 安装pip
-    curl -L https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-    python3 get-pip.py
-    
+    log "安装pip..."
+    PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
+    PYTHON_VERSION=$(python3 -V 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+
+    # 根据Python版本选择合适的pip安装脚本
+    case "$PYTHON_VERSION" in
+        "3.6")
+            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.6/get-pip.py"
+            ;;
+        "3.7")
+            PIP_SCRIPT_URL="https://bootstrap.pypa.io/pip/3.7/get-pip.py"
+            ;;
+        *)
+            PIP_SCRIPT_URL="https://bootstrap.pypa.io/get-pip.py"
+            ;;
+    esac
+
+    log "使用pip安装脚本: $PIP_SCRIPT_URL"
+    curl -L "$PIP_SCRIPT_URL" -o get-pip.py
+    if [ $? -eq 0 ]; then
+        python3 get-pip.py --no-warn-script-location
+        rm -f get-pip.py
+    else
+        log "错误: 下载pip安装脚本失败"
+        exit 1
+    fi
+
     # 配置pip源为阿里云
     mkdir -p ~/.pip
     cat > ~/.pip/pip.conf << EOF
@@ -164,7 +188,7 @@ install_python() {
 index-url = https://mirrors.aliyun.com/pypi/simple/
 trusted-host = mirrors.aliyun.com
 EOF
-    
+
     # 升级pip和安装基础包
     python3 -m pip install --upgrade pip wheel setuptools virtualenv
     
