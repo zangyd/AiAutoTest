@@ -76,20 +76,28 @@ else
     exit 1
 fi
 
-# 移除旧版本Python
-yum remove -y python3
+# 检查并备份系统Python依赖
+backup_python_deps() {
+    log "备份系统Python依赖..."
+    # 创建备份目录
+    mkdir -p /root/python_backup
+    # 导出已安装的包列表
+    if command -v python3.6 &> /dev/null; then
+        python3.6 -m pip freeze > /root/python_backup/requirements_system.txt
+    fi
+}
 
-# 安装编译Python所需的依赖
-yum groupinstall -y "Development Tools"
-yum install -y openssl-devel bzip2-devel libffi-devel xz-devel
+# 移除旧版本Python
+log "移除旧版本Python..."
+yum remove -y python3 python3-devel python3-pip python3-setuptools
 
 # 安装Python 3.10
 install_python() {
-    echo "开始安装Python 3.10..."
+    log "开始安装Python 3.10..."
     
     # 安装编译依赖
     yum groupinstall -y "Development Tools"
-    yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel
+    yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel wget
     
     # 下载Python源码（使用国内镜像）
     cd /tmp
@@ -107,8 +115,8 @@ install_python() {
     ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
     
     # 安装pip
-    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-    python3 get-pip.py --force-reinstall
+    curl -L https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    python3 get-pip.py
     
     # 配置pip源为阿里云
     mkdir -p ~/.pip
@@ -118,11 +126,8 @@ index-url = https://mirrors.aliyun.com/pypi/simple/
 trusted-host = mirrors.aliyun.com
 EOF
     
-    # 升级pip
-    pip3 install --upgrade pip
-    
-    # 安装virtualenv
-    pip3 install virtualenv
+    # 升级pip和安装基础包
+    python3 -m pip install --upgrade pip wheel setuptools virtualenv
     
     cd -
     rm -rf /tmp/Python-3.10.13*
@@ -130,7 +135,7 @@ EOF
 
 # 创建并配置虚拟环境
 setup_virtualenv() {
-    echo "配置Python虚拟环境..."
+    log "配置Python虚拟环境..."
     
     # 创建项目目录
     mkdir -p /data/projects/autotest/backend
@@ -144,8 +149,6 @@ setup_virtualenv() {
     
     # 激活虚拟环境并安装基本包
     source venv/bin/activate
-    pip install --upgrade pip
-    pip install wheel setuptools
     
     # 如果存在requirements.txt，则安装依赖
     if [ -f "requirements.txt" ]; then
@@ -156,7 +159,8 @@ setup_virtualenv() {
     deactivate
 }
 
-# 执行安装和配置
+# 执行Python环境配置
+backup_python_deps
 install_python
 setup_virtualenv
 
