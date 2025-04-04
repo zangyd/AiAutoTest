@@ -41,14 +41,18 @@ ensure_directory "/data/projects/autotest"
 ensure_directory "/data/logs/autotest"
 ensure_directory "/data/backup/autotest"
 
+# 安装系统Python3（用于yum）
+log "安装系统Python3..."
+dnf install -y python3 python3-libs python3-devel
+
 # 更新系统包
 log "更新系统包..."
-yum update -y
+dnf update -y
 
 # 安装编译工具和依赖
 log "安装编译工具和依赖..."
-yum groupinstall -y "Development Tools"
-yum install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel wget
+dnf groupinstall -y "Development Tools"
+dnf install -y openssl-devel bzip2-devel libffi-devel zlib-devel readline-devel sqlite-devel wget
 
 # 安装Python 3.10
 log "开始安装Python 3.10..."
@@ -56,7 +60,7 @@ cd /tmp
 wget https://www.python.org/ftp/python/3.10.0/Python-3.10.0.tgz
 tar xzf Python-3.10.0.tgz
 cd Python-3.10.0
-./configure --enable-optimizations
+./configure --enable-optimizations --prefix=/usr/local/python3.10
 make -j $(nproc)
 make install
 cd ..
@@ -64,14 +68,14 @@ rm -rf Python-3.10.0*
 
 # 验证Python安装
 log "验证Python安装..."
-if ! /usr/local/bin/python3 --version; then
+if ! /usr/local/python3.10/bin/python3 --version; then
     log "错误: Python3.10 安装失败"
     exit 1
 fi
 
 # 创建软链接
-ln -sf /usr/local/bin/python3.10 /usr/local/bin/python3
-ln -sf /usr/local/bin/pip3.10 /usr/local/bin/pip3
+ln -sf /usr/local/python3.10/bin/python3 /usr/local/bin/python3
+ln -sf /usr/local/python3.10/bin/pip3 /usr/local/bin/pip3
 
 # 配置pip
 log "配置pip..."
