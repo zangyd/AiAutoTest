@@ -83,21 +83,34 @@ check_service docker
 # 安装Docker Compose
 log "安装Docker Compose..."
 DOCKER_COMPOSE_VERSION="v2.20.0"
-# 使用阿里云镜像源
-curl -L "https://get.daocloud.io/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 
-if [ $? -eq 0 ]; then
-    chmod +x /usr/local/bin/docker-compose
-    log "Docker Compose 安装成功"
+# 首先尝试通过yum安装
+log "尝试通过yum安装docker-compose..."
+if yum install -y docker-compose; then
+    log "Docker Compose 通过yum安装成功"
 else
-    log "尝试备用下载源..."
-    # 备用下载源
-    curl -L "https://mirror.azure.cn/docker-toolbox/linux/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    if [ $? -eq 0 ]; then
-        chmod +x /usr/local/bin/docker-compose
-        log "Docker Compose 安装成功（使用备用源）"
-    else
-        log "错误: Docker Compose 安装失败"
+    log "yum安装失败，尝试通过下载二进制文件安装..."
+    COMPOSE_DOWNLOAD_URLS=(
+        "https://mirror.ghproxy.com/https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)"
+        "https://mirror.azure.cn/docker-toolbox/linux/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)"
+        "https://download.fastgit.org/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)"
+        "https://hub.fastgit.xyz/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)"
+    )
+
+    download_success=false
+    for url in "${COMPOSE_DOWNLOAD_URLS[@]}"; do
+        log "尝试从 ${url} 下载..."
+        if curl -L -f "${url}" -o /usr/local/bin/docker-compose; then
+            chmod +x /usr/local/bin/docker-compose
+            log "Docker Compose 安装成功"
+            download_success=true
+            break
+        fi
+        log "下载失败，尝试下一个源..."
+    done
+
+    if [ "$download_success" = false ]; then
+        log "错误: 所有下载源均失败，Docker Compose 安装失败"
         exit 1
     fi
 fi
