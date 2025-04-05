@@ -2,11 +2,14 @@
   <div class="home">
     <h1>自动化测试平台</h1>
     <p>欢迎使用自动化测试平台</p>
+    <ErrorTest />
+    <NetworkTest />
   </div>
 </template>
 
 <script setup lang="ts">
-// Home view component
+import ErrorTest from '../components/ErrorTest.vue'
+import NetworkTest from '../components/NetworkTest.vue'
 </script>
 
 <style scoped>
