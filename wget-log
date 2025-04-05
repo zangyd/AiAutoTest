@@ -40,4 +40,42 @@ Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection 
 Retrying.
 
 --2025-04-05 23:40:45--  (try:11)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
-Connecting to github.com (github.com)|20.205.243.166|:443... 
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:43:04--  (try:12)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:45:24--  (try:13)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:47:43--  (try:14)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:50:02--  (try:15)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:52:21--  (try:16)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:54:41--  (try:17)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:57:00--  (try:18)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-05 23:59:19--  (try:19)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Retrying.
+
+--2025-04-06 00:01:39--  (try:20)  https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-linux-x86_64
+Connecting to github.com (github.com)|20.205.243.166|:443... failed: Connection timed out.
+Giving up.
+

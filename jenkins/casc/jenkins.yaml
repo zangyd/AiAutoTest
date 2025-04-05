@@ -1,0 +1,97 @@
+jenkins:
+  systemMessage: "自动化测试平台 Jenkins"
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin123"
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Administer:admin"
+        - "Overall/Read:authenticated"
+  remotingSecurity:
+    enabled: true
+  
+  nodes:
+    - permanent:
+        name: "slave1"
+        remoteFS: "/home/jenkins"
+        launcher:
+          jnlp:
+            workDirSettings:
+              disabled: false
+              failIfWorkDirIsMissing: false
+              internalDir: "remoting"
+        numExecutors: 2
+        
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+  
+  maven:
+    installations:
+      - name: "Maven 3"
+        properties:
+          - installSource:
+              installers:
+                - maven:
+                    id: "3.8.6"
+
+  jdk:
+    installations:
+      - name: "JDK 11"
+        properties:
+          - installSource:
+              installers:
+                - adoptOpenJdkInstaller:
+                    id: "jdk-11.0.12+7"
+
+jobs:
+  - script: >
+      pipelineJob('自动化测试') {
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+                stages {
+                  stage('代码检查') {
+                    steps {
+                      echo '运行代码检查...'
+                    }
+                  }
+                  stage('单元测试') {
+                    steps {
+                      echo '运行单元测试...'
+                    }
+                  }
+                  stage('集成测试') {
+                    steps {
+                      echo '运行集成测试...'
+                    }
+                  }
+                  stage('构建') {
+                    steps {
+                      echo '执行构建...'
+                    }
+                  }
+                  stage('部署') {
+                    steps {
+                      echo '执行部署...'
+                    }
+                  }
+                }
+                post {
+                  always {
+                    echo '清理工作空间...'
+                  }
+                }
+              }
+            ''')
+          }
+        }
+      } 

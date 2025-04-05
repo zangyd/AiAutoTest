@@ -1,0 +1,60 @@
+groups:
+  - name: 实例监控
+    rules:
+      - alert: 实例离线
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "实例 {{ $labels.instance }} 离线"
+          description: "实例 {{ $labels.instance }} 已经离线超过1分钟"
+
+  - name: 系统资源监控
+    rules:
+      - alert: 高CPU使用率
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "实例 {{ $labels.instance }} CPU使用率过高"
+          description: "CPU使用率超过85%持续5分钟"
+
+      - alert: 高内存使用率
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "实例 {{ $labels.instance }} 内存使用率过高"
+          description: "内存使用率超过85%持续5分钟"
+
+      - alert: 高磁盘使用率
+        expr: node_filesystem_free_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100 < 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "实例 {{ $labels.instance }} 磁盘空间不足"
+          description: "根分区剩余空间小于10%"
+
+  - name: Jenkins监控
+    rules:
+      - alert: Jenkins构建失败
+        expr: jenkins_builds_failed_total > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Jenkins构建失败"
+          description: "检测到构建失败，请检查Jenkins控制台"
+
+      - alert: Jenkins离线节点
+        expr: jenkins_node_offline_value > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Jenkins节点离线"
+          description: "存在离线的Jenkins节点，请检查节点状态" 

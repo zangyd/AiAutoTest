@@ -6,24 +6,20 @@ alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          # - alertmanager:9093
+          # 后续可添加alertmanager配置
 
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - /etc/prometheus/rules/alert_rules.yml
 
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'backend'
+  - job_name: 'jenkins'
+    metrics_path: /prometheus
     static_configs:
-      - targets: ['backend:8000']
-
-  - job_name: 'frontend'
-    static_configs:
-      - targets: ['frontend:3000']
+      - targets: ['jenkins:8080']
 
   - job_name: 'node-exporter'
     static_configs:

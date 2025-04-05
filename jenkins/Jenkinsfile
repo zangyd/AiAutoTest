@@ -1,0 +1,96 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = 'registry.cn-hangzhou.aliyuncs.com'
+        IMAGE_NAME = 'autotest'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('代码检查') {
+            steps {
+                sh '''
+                    echo "运行pylint进行Python代码检查"
+                    pylint backend/**/*.py || true
+                    
+                    echo "运行ESLint进行前端代码检查"
+                    cd frontend && npm run lint || true
+                '''
+            }
+        }
+        
+        stage('单元测试') {
+            steps {
+                sh '''
+                    echo "运行后端单元测试"
+                    cd backend && pytest tests/unit --junitxml=test-reports/unit-tests.xml
+                    
+                    echo "运行前端单元测试"
+                    cd frontend && npm run test:unit
+                '''
+            }
+        }
+        
+        stage('集成测试') {
+            steps {
+                sh '''
+                    echo "运行API集成测试"
+                    cd backend && pytest tests/integration --junitxml=test-reports/integration-tests.xml
+                    
+                    echo "运行E2E测试"
+                    cd frontend && npm run test:e2e
+                '''
+            }
+        }
+        
+        stage('构建') {
+            steps {
+                sh '''
+                    echo "构建后端Docker镜像"
+                    docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}-backend:${IMAGE_TAG} backend/
+                    
+                    echo "构建前端Docker镜像"
+                    docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}-frontend:${IMAGE_TAG} frontend/
+                '''
+            }
+        }
+        
+        stage('部署') {
+            steps {
+                sh '''
+                    echo "推送Docker镜像"
+                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}-backend:${IMAGE_TAG}
+                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}-frontend:${IMAGE_TAG}
+                    
+                    echo "更新Docker Compose配置"
+                    sed -i "s|image: .*backend:.*|image: ${DOCKER_REGISTRY}/${IMAGE_NAME}-backend:${IMAGE_TAG}|g" docker-compose.yml
+                    sed -i "s|image: .*frontend:.*|image: ${DOCKER_REGISTRY}/${IMAGE_NAME}-frontend:${IMAGE_TAG}|g" docker-compose.yml
+                    
+                    echo "部署应用"
+                    docker-compose up -d
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo '清理工作空间...'
+            cleanWs()
+            
+            echo '生成测试报告...'
+            junit 'backend/test-reports/**/*.xml'
+        }
+        
+        success {
+            echo '部署成功，发送通知...'
+            // 添加成功通知逻辑
+        }
+        
+        failure {
+            echo '部署失败，发送通知...'
+            // 添加失败通知逻辑
+        }
+    }
+} 

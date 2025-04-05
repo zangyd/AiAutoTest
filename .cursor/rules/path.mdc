@@ -1,0 +1,168 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description:目录结构
+globs: 
+alwaysApply:true
+---
+
+```mermaid
+graph TD
+    %% 根目录结构
+    Root[项目根目录] --> Config[配置文件]
+    Root --> Dirs[核心目录]
+    Root --> Docs[文档]
+    Root --> DevOps[DevOps相关]
+
+    %% 配置文件
+    Config --> GitConfig[Git配置]
+    Config --> DockerConfig[Docker配置]
+    Config --> TestConfig[测试配置]
+    
+    GitConfig --> |".gitmessage\n.gitignore\n.gitattributes"| GitFiles
+    DockerConfig --> |"docker-compose.yml\ndocker-compose-monitor.yml"| DockerFiles
+    TestConfig --> |"pytest.ini"| TestFiles
+
+    %% 核心目录
+    Dirs --> Backend[backend/]
+    Dirs --> Frontend[frontend/]
+    Dirs --> Monitor[监控系统]
+
+    %% 后端结构
+    Backend --> BE_Structure[目录结构]
+    Backend --> BE_Config[配置文件]
+    
+    BE_Structure --> BE_Src[src/]
+    BE_Structure --> BE_Core[core/]
+    BE_Structure --> BE_Tests[tests/]
+    BE_Structure --> BE_Scripts[scripts/]
+    BE_Structure --> BE_Logs[logs/]
+    BE_Structure --> BE_CI[ci/]
+    BE_Structure --> BE_Reqs[requirements/]
+    
+    BE_Config --> |".env\n.env.example\nrequirements.txt"| BE_ConfigFiles
+    
+    BE_Src --> BE_Src_Core[core/]
+    BE_Src_Core --> |"debug.py"| BE_Debug
+    BE_Src_Core --> BE_Src_Config[config/]
+
+    %% 前端结构
+    Frontend --> FE_Structure[目录结构]
+    Frontend --> FE_Config[配置文件]
+    
+    FE_Structure --> FE_Src[src/]
+    FE_Structure --> FE_Tests[tests/]
+    FE_Structure --> FE_Modules[node_modules/]
+    
+    FE_Config --> |"vite.config.ts\ntsconfig.json\n.eslintrc.js"| FE_ConfigFiles
+    
+    FE_Src --> |"App.vue\nmain.ts"| FE_MainFiles
+    FE_Src --> FE_Components[components/]
+    FE_Src --> FE_Views[views/]
+    FE_Src --> FE_Utils[utils/]
+    FE_Src --> FE_Router[router/]
+    
+    FE_Components --> |"PerformanceMonitor.vue\nNetworkTest.vue\nErrorTest.vue"| FE_CompFiles
+
+    %% 监控系统
+    Monitor --> Prometheus[prometheus/]
+    Monitor --> Grafana[grafana/]
+    Monitor --> Logstash[logstash/]
+    
+    Prometheus --> |"prometheus.yml"| Prom_Config
+    Prometheus --> Prom_Rules[rules/]
+    Prom_Rules --> |"alert_rules.yml"| Alert_Rules
+
+    %% DevOps相关
+    DevOps --> Jenkins[jenkins/]
+    DevOps --> Scripts[scripts/]
+    DevOps --> |"start-cicd.sh"| CI_Scripts
+
+    %% 文档
+    Docs --> |"README.md\nSUPPORT.md\nSECURITY.md"| DocFiles
+    Docs --> GithubDocs[.github/]
+    Docs --> CursorDocs[.cursor/]
+```
+
+目录结构说明：
+
+1. 配置文件层
+   - Git相关配置：版本控制配置
+   - Docker相关配置：容器编排配置
+   - 测试相关配置：测试框架配置
+
+2. 后端架构 (`backend/`)
+   ```
+   backend/
+   ├── src/                # 源代码
+   │   ├── core/          # 核心功能
+   │   │   ├── config/    # 配置管理
+   │   │   └── debug.py   # 调试工具
+   │   └── main.py        # 入口文件
+   ├── core/              # 公共核心模块
+   ├── tests/             # 测试用例
+   ├── scripts/           # 维护脚本
+   ├── logs/             # 日志文件
+   ├── ci/               # CI配置
+   ├── requirements/     # 依赖管理
+   └── .env*             # 环境配置
+   ```
+
+3. 前端架构 (`frontend/`)
+   ```
+   frontend/
+   ├── src/              # 源代码
+   │   ├── components/   # Vue组件
+   │   │   ├── PerformanceMonitor.vue
+   │   │   ├── NetworkTest.vue
+   │   │   └── ErrorTest.vue
+   │   ├── views/       # 页面视图
+   │   ├── utils/       # 工具函数
+   │   ├── router/      # 路由配置
+   │   ├── App.vue      # 根组件
+   │   └── main.ts      # 入口文件
+   ├── tests/           # 测试用例
+   └── *.config.*       # 各类配置文件
+   ```
+
+4. 监控系统
+   ```
+   prometheus/
+   ├── prometheus.yml   # Prometheus配置
+   └── rules/
+       └── alert_rules.yml  # 告警规则
+   
+   grafana/            # Grafana配置
+   logstash/          # 日志收集配置
+   ```
+
+5. DevOps工具链
+   ```
+   jenkins/           # Jenkins配置
+   scripts/          # 运维脚本
+   start-cicd.sh     # CI/CD启动脚本
+   ```
+
+目录命名规范：
+1. 使用小写字母
+2. 使用连字符(-)分隔单词
+3. 保持简短但具描述性
+4. 遵循行业通用命名
+
+文件命名规范：
+1. 配置文件：小写，可包含点号
+2. 源代码文件：
+   - 后端：snake_case
+   - 前端：PascalCase (Vue组件)
+3. 测试文件：test_前缀
+4. 文档文件：大写字母开头
+
+这个结构遵循以下原则：
+1. 关注点分离
+2. 模块化组织
+3. 清晰的层次结构
+4. 符合各框架最佳实践
+5. 便于维护和扩展

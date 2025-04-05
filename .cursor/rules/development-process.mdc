@@ -4,11 +4,6 @@ globs:
 alwaysApply: false
 ---
 ---
-description: 
-globs: 
-alwaysApply: false
----
----
 description:自动化测试平台开发流程文档
 globs: 
 alwaysApply:false

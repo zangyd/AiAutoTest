@@ -1,0 +1,15 @@
+unclassified:
+  slackNotifier:
+    teamDomain: your-team-domain
+    tokenCredentialId: slack-token
+    room: "#ci-cd-notifications"
+    
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              scope: GLOBAL
+              id: slack-token
+              secret: ${SLACK_TOKEN}
+              description: "Slack Integration Token" 
