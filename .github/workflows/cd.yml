@@ -1,13 +1,66 @@
-name: CD
+name: Continuous Deployment
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      version:
+        description: '部署版本'
+        required: false
+        type: string
+
+env:
+  REGISTRY: docker.io
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/autotest-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/autotest-frontend
 
 jobs:
-  deploy:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+      environment: ${{ steps.set-env.outputs.environment }}
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: Set version
+      id: set-version
+      run: |
+        if [[ "${{ github.event.inputs.version }}" != "" ]]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "version=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Set environment
+      id: set-env
+      run: |
+        if [[ "${{ github.event.inputs.environment }}" != "" ]]; then
+          echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          echo "environment=production" >> $GITHUB_OUTPUT
+        else
+          echo "environment=staging" >> $GITHUB_OUTPUT
+        fi
+
+  build-and-push:
+    needs: prepare
     runs-on: ubuntu-latest
     
     steps:
@@ -19,23 +72,50 @@ jobs:
     - name: Login to Docker Hub
       uses: docker/login-action@v2
       with:
+        registry: ${{ env.REGISTRY }}
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Download backend build
+      uses: actions/download-artifact@v3
+      with:
+        name: backend-dist
+        path: backend/dist
+        
+    - name: Download frontend build
+      uses: actions/download-artifact@v3
+      with:
+        name: frontend-dist
+        path: frontend/dist
         
     - name: Build and push backend
       uses: docker/build-push-action@v4
       with:
         context: ./backend
         push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/autotest-backend:latest
+        tags: |
+          ${{ env.BACKEND_IMAGE }}:${{ needs.prepare.outputs.version }}
+          ${{ env.BACKEND_IMAGE }}:latest
+        cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:latest
+        cache-to: type=inline
         
     - name: Build and push frontend
       uses: docker/build-push-action@v4
       with:
         context: ./frontend
         push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/autotest-frontend:latest
-        
+        tags: |
+          ${{ env.FRONTEND_IMAGE }}:${{ needs.prepare.outputs.version }}
+          ${{ env.FRONTEND_IMAGE }}:latest
+        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest
+        cache-to: type=inline
+
+  deploy:
+    needs: [prepare, build-and-push]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.prepare.outputs.environment }}
+    
+    steps:
     - name: Deploy to server
       uses: appleboy/ssh-action@master
       with:
@@ -43,6 +123,66 @@ jobs:
         username: ${{ secrets.SERVER_USERNAME }}
         key: ${{ secrets.SERVER_SSH_KEY }}
         script: |
+          # 备份当前版本以支持回滚
+          if [ -f "/data/projects/autotest/docker-compose.yml" ]; then
+            cp /data/projects/autotest/docker-compose.yml /data/projects/autotest/docker-compose.yml.backup
+          fi
+          
+          # 更新配置文件
           cd /data/projects/autotest
+          echo "version: '3.8'
+          
+          services:
+            backend:
+              image: ${{ env.BACKEND_IMAGE }}:${{ needs.prepare.outputs.version }}
+              restart: always
+              env_file:
+                - .env.${{ needs.prepare.outputs.environment }}
+              volumes:
+                - ./data:/app/data
+                - ./logs:/app/logs
+              networks:
+                - app-network
+            
+            frontend:
+              image: ${{ env.FRONTEND_IMAGE }}:${{ needs.prepare.outputs.version }}
+              restart: always
+              ports:
+                - '80:80'
+              depends_on:
+                - backend
+              networks:
+                - app-network
+          
+          networks:
+            app-network:
+              driver: bridge" > docker-compose.yml
+          
+          # 拉取新镜像并部署
           docker-compose pull
-          docker-compose up -d 
+          docker-compose up -d
+          
+          # 检查部署状态
+          sleep 10
+          if ! docker-compose ps | grep -q "Up"; then
+            echo "部署失败，开始回滚..."
+            mv docker-compose.yml.backup docker-compose.yml
+            docker-compose pull
+            docker-compose up -d
+            exit 1
+          fi
+          
+          # 清理旧镜像
+          docker image prune -f
+    
+    - name: Notify deployment status
+      if: always()
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_TITLE: '部署状态'
+        SLACK_MESSAGE: |
+          环境: ${{ needs.prepare.outputs.environment }}
+          版本: ${{ needs.prepare.outputs.version }}
+          状态: ${{ job.status }} 

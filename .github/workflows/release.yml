@@ -1,0 +1,253 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (例如: v1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: '是否为预发布版本'
+        required: true
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: docker.io
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/autotest-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/autotest-frontend
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate-version.outputs.version }}
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    
+    - name: 验证版本号格式
+      id: validate-version
+      run: |
+        if [[ ! "${{ github.event.inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+          echo "错误: 版本号格式无效. 应该类似 v1.0.0 或 v1.0.0-beta.1"
+          exit 1
+        fi
+        echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+    
+    - name: 创建发布分支
+      run: |
+        git checkout -b release/${{ steps.validate-version.outputs.version }}
+        
+    - name: 更新版本文件
+      run: |
+        echo "VERSION=${{ steps.validate-version.outputs.version }}" > .version
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .version
+        git commit -m "chore: 更新版本号到 ${{ steps.validate-version.outputs.version }}"
+        git push origin release/${{ steps.validate-version.outputs.version }}
+
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: autotest
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+      
+      redis:
+        image: redis:6.2
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
+      
+      mongodb:
+        image: mongo:6.0
+        ports:
+          - 27017:27017
+        options: --health-cmd="mongosh --eval 'db.runCommand({ping:1})'" --health-interval=10s --health-timeout=5s --health-retries=3
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: release/${{ needs.prepare.outputs.version }}
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+    
+    - name: 设置Node.js环境
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 安装后端依赖
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: 安装前端依赖
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: 运行后端测试
+      run: |
+        cd backend
+        pytest --cov=app --cov-report=xml
+    
+    - name: 运行前端测试
+      run: |
+        cd frontend
+        npm run test:unit
+    
+    - name: 上传测试覆盖率报告
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: |
+          backend/coverage.xml
+          frontend/coverage
+
+  build:
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: release/${{ needs.prepare.outputs.version }}
+    
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: 设置Node.js环境
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 构建后端
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        python setup.py bdist_wheel
+    
+    - name: 构建前端
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+    
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist
+        path: |
+          backend/dist
+          frontend/dist
+    
+    - name: 设置Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: 登录Docker Hub
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: 构建并推送后端镜像
+      uses: docker/build-push-action@v4
+      with:
+        context: ./backend
+        push: true
+        tags: |
+          ${{ env.BACKEND_IMAGE }}:${{ needs.prepare.outputs.version }}
+          ${{ env.BACKEND_IMAGE }}:latest
+        cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:latest
+        cache-to: type=inline
+    
+    - name: 构建并推送前端镜像
+      uses: docker/build-push-action@v4
+      with:
+        context: ./frontend
+        push: true
+        tags: |
+          ${{ env.FRONTEND_IMAGE }}:${{ needs.prepare.outputs.version }}
+          ${{ env.FRONTEND_IMAGE }}:latest
+        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest
+        cache-to: type=inline
+
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        ref: release/${{ needs.prepare.outputs.version }}
+    
+    - name: 下载构建产物
+      uses: actions/download-artifact@v3
+      with:
+        name: dist
+        path: dist
+    
+    - name: 生成更新日志
+      id: changelog
+      run: |
+        previous_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -z "$previous_tag" ]; then
+          git log --pretty=format:"* %s" > CHANGELOG.md
+        else
+          git log --pretty=format:"* %s" $previous_tag..HEAD > CHANGELOG.md
+        fi
+    
+    - name: 创建GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.prepare.outputs.version }}
+        name: Release ${{ needs.prepare.outputs.version }}
+        body_path: CHANGELOG.md
+        prerelease: ${{ github.event.inputs.prerelease }}
+        files: |
+          dist/backend/*
+          dist/frontend/*
+    
+    - name: 合并到主分支
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git checkout main
+        git merge --no-ff release/${{ needs.prepare.outputs.version }} -m "chore: 合并发布 ${{ needs.prepare.outputs.version }} 到主分支"
+        git push origin main
+        git push origin --delete release/${{ needs.prepare.outputs.version }}
+    
+    - name: 发送通知
+      uses: rtCamp/action-slack-notify@v2
+      if: always()
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_TITLE: '发布状态'
+        SLACK_MESSAGE: |
+          版本: ${{ needs.prepare.outputs.version }}
+          类型: ${{ github.event.inputs.prerelease && '预发布' || '正式发布' }}
+          状态: ${{ job.status }} 
