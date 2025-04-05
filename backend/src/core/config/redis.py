@@ -1,18 +1,10 @@
-from pydantic import BaseSettings
+import os
 
-
-class RedisSettings(BaseSettings):
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
-    REDIS_PASSWORD: str = "Redis@2024"
-    REDIS_POOL_SIZE: int = 20
-    REDIS_TIMEOUT: int = 5
-    REDIS_ENCODING: str = "utf-8"
-
-    class Config:
-        env_prefix = "REDIS_"
-        case_sensitive = True
-
+class RedisSettings:
+    REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+    REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+    REDIS_DB = int(os.getenv('REDIS_DB', 0))
+    REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', 'Autotest@2024')
+    REDIS_ENCODING = os.getenv('REDIS_ENCODING', 'utf-8')
 
 redis_settings = RedisSettings()

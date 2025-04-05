@@ -1,19 +1,12 @@
-from pydantic import BaseSettings
+import os
 
-
-class MySQLSettings(BaseSettings):
-    MYSQL_HOST: str = "localhost"
-    MYSQL_PORT: int = 3306
-    MYSQL_USER: str = "autotest_user"
-    MYSQL_PASSWORD: str = "123456"
-    MYSQL_DATABASE: str = "autotest_platform"
-    MYSQL_CHARSET: str = "utf8mb4"
-    MYSQL_POOL_SIZE: int = 20
-    MYSQL_POOL_RECYCLE: int = 3600
-
-    class Config:
-        env_prefix = "MYSQL_"
-        case_sensitive = True
-
+class MySQLSettings:
+    DB_HOST = os.getenv('DB_HOST', 'localhost')
+    DB_PORT = int(os.getenv('DB_PORT', 3306))
+    DB_USER = os.getenv('DB_USER', 'root')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', 'Autotest@2024')
+    DB_NAME = os.getenv('DB_NAME', 'autotest')
+    MYSQL_POOL_SIZE = int(os.getenv('MYSQL_POOL_SIZE', 20))
+    MYSQL_POOL_RECYCLE = int(os.getenv('MYSQL_POOL_RECYCLE', 3600))
 
 mysql_settings = MySQLSettings()
