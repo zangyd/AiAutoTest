@@ -1,0 +1,36 @@
+# <type>(<scope>): <subject>
+#
+# <body>
+#
+# <footer>
+#
+# type类型:
+#   feat: 新功能
+#   fix: Bug修复
+#   docs: 文档更新
+#   style: 代码格式
+#   refactor: 重构
+#   test: 增加测试
+#   chore: 构建过程或辅助工具的变动
+#
+# scope范围:
+#   backend: 后端相关
+#   frontend: 前端相关
+#   database: 数据库相关
+#   auth: 认证相关
+#   等
+#
+# subject要求:
+#   - 简短描述，不超过50个字符
+#   - 以动词开头，使用第一人称现在时
+#   - 第一个字母小写
+#   - 结尾不加句号
+#
+# body格式:
+#   - 详细描述代码变动
+#   - 可以分多行
+#   - 说明变动原因和影响
+#
+# footer格式:
+#   - 不兼容变动：以BREAKING CHANGE开头
+#   - 关闭Issue：Closes #123, Fixes #123 
