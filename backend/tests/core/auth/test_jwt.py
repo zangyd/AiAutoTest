@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock
 
 from fastapi import HTTPException
-from jose import jwt
+import jwt
 
 from src.core.auth.jwt import JWTHandler
 from src.core.config.jwt_config import jwt_settings
