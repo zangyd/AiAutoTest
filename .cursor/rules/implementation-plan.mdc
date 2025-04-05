@@ -64,13 +64,12 @@ alwaysApply: true
     * [x] 配置.gitignore规则并验证 Done
     * [x] 配置.gitattributes并验证 Done
     * [x] 配置Git LFS并验证 Done
-    * [x] 配置子模块并验证 Done
   - 1.2.1.2 [x] 分支策略 Done
-    * [x] 配置主分支保护并验证 Done
-    * [x] 配置开发分支并验证 Done
-    * [x] 配置发布分支并验证 Done
-    * [x] 配置特性分支并验证 Done
-    * [x] 配置修复分支并验证 Done
+    * [ ] 配置主分支保护并验证 Done
+    * [ ] 配置开发分支并验证 Done
+    * [ ] 配置发布分支并验证 Done
+    * [ ] 配置特性分支并验证 Done
+    * [ ] 配置修复分支并验证 Done
 
 - [x] 1.2.2 工作流配置 Done
   - 1.2.2.1 [x] CI/CD工作流 Done
