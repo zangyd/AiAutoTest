@@ -1,0 +1,148 @@
+---
+description: Appium最佳实践与开发规范
+globs: 
+alwaysApply: false
+---
+### Pytest+Appium最佳实践与编码规范
+
+#### 一、环境搭建与配置
+1. **安装依赖**
+    - 使用 `pip` 安装 `pytest` 和 `Appium-Python-Client`。
+    ```bash
+    pip install pytest Appium-Python-Client
+    ```
+2. **Appium服务器配置**
+    - 启动 Appium 服务器，可使用命令行或 Appium Desktop 应用。
+    - 确保设备（真机或模拟器）已正确连接，并且开发者选项和 USB 调试已开启。
+
+#### 二、项目结构
+1. **目录结构**
+    - 建议采用以下目录结构：
+```plaintext
+project_root/
+│
+├── tests/           # 测试用例目录
+│   ├── __init__.py
+│   ├── test_login.py
+│   ├── test_search.py
+│
+├── pages/           # 页面元素和操作封装目录
+│   ├── __init__.py
+│   ├── login_page.py
+│   ├── search_page.py
+│
+├── utils/           # 工具类目录
+│   ├── __init__.py
+│   ├── appium_driver.py
+│
+├── config/          # 配置文件目录
+│   ├── __init__.py
+│   ├── app_config.yaml
+│
+├── conftest.py      # Pytest 配置文件
+├── pytest.ini       # Pytest 配置文件
+```
+
+#### 三、编码规范
+
+##### 1. 测试用例编写规范
+- **命名规范**：测试用例函数名应以 `test_` 开头，采用小写字母和下划线组合，清晰描述测试场景。
+```python
+# 示例
+def test_login_success():
+    pass
+```
+- **测试用例独立性**：每个测试用例应相互独立，避免依赖其他测试用例的执行结果。
+- **断言使用**：使用 `assert` 语句进行断言，确保测试结果符合预期。
+```python
+def test_search_result():
+    result = search("keyword")
+    assert len(result) > 0
+```
+
+##### 2. 页面元素和操作封装规范
+- **Page Object 模式**：使用 Page Object 模式将页面元素和操作封装到独立的类中，提高代码的可维护性和复用性。
+```python
+# pages/login_page.py
+from appium.webdriver.common.mobileby import MobileBy
+
+class LoginPage:
+    def __init__(self, driver):
+        self.driver = driver
+        self.username_input = (MobileBy.ID, "username")
+        self.password_input = (MobileBy.ID, "password")
+        self.login_button = (MobileBy.ID, "login")
+
+    def enter_username(self, username):
+        self.driver.find_element(*self.username_input).send_keys(username)
+
+    def enter_password(self, password):
+        self.driver.find_element(*self.password_input).send_keys(password)
+
+    def click_login_button(self):
+        self.driver.find_element(*self.login_button).click()
+```
+
+##### 3. 工具类编写规范
+- **Appium 驱动初始化**：将 Appium 驱动的初始化逻辑封装到工具类中，方便在测试用例中使用。
+```python
+# utils/appium_driver.py
+import yaml
+from appium import webdriver
+
+def get_appium_driver():
+    with open('config/app_config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    driver = webdriver.Remote('http://localhost:4723/wd/hub', config)
+    return driver
+```
+
+#### 四、Pytest 配置与使用
+
+##### 1. `pytest.ini` 配置
+```ini
+[pytest]
+addopts = -v -s --html=report.html
+```
+- `-v`：显示详细的测试执行信息。
+- `-s`：显示测试用例中的打印信息。
+- `--html=report.html`：生成 HTML 测试报告。
+
+##### 2. `conftest.py` 配置
+```python
+import pytest
+from utils.appium_driver import get_appium_driver
+
+@pytest.fixture(scope="session")
+def appium_driver():
+    driver = get_appium_driver()
+    yield driver
+    driver.quit()
+```
+- 使用 `fixture` 提供共享的资源，如 Appium 驱动。
+
+#### 五、测试报告与持续集成
+1. **测试报告**：使用 `pytest-html` 插件生成 HTML 测试报告，方便查看测试结果。
+2. **持续集成**：将测试用例集成到 CI/CD 流程中，如 Jenkins、GitLab CI/CD 等，确保每次代码变更都能自动执行测试。
+
+#### 六、异常处理与日志记录
+1. **异常处理**：在测试用例中使用 `try-except` 语句捕获和处理异常，确保测试用例的稳定性。
+```python
+def test_login():
+    try:
+        # 测试逻辑
+        pass
+    except Exception as e:
+        print(f"Test failed: {e}")
+```
+2. **日志记录**：使用 Python 的 `logging` 模块记录测试过程中的关键信息，方便后续排查问题。
+```python
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def test_search():
+    logging.info("Starting search test...")
+    # 测试逻辑
+    logging.info("Search test completed.")
+```

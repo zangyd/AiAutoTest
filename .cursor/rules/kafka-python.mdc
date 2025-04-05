@@ -1,0 +1,58 @@
+---
+description: kafka最佳实践与开发规范
+globs: 
+alwaysApply: false
+---
+---
+description:本文档概述了Apache Kafka与Python结合使用的最佳实践和编码规范，同时提供相应代码示例.
+globs:"**/*.py"
+alwaysApply:true
+---
+
+### 最佳实践
+1. **生产者（Producer）**
+    - **异步发送**：使用`send()`方法异步发送消息，这样可以提高性能。
+    - **错误处理**：处理发送失败的情况，可通过回调函数或`future.get()`捕获异常。
+    - **批量发送**：合理设置`batch_size`和`linger_ms`，以提高吞吐量。
+2. **消费者（Consumer）**
+    - **自动提交与手动提交**：根据业务需求选择合适的提交方式，手动提交更灵活。
+    - **分区分配**：理解分区分配策略，可根据需要自定义。
+    - **异常处理**：处理消费过程中的异常，确保程序的稳定性。
+
+### 编码规范
+1. **导入模块**：使用`kafka-python`库，导入必要的类。
+2. **代码结构**：将生产者和消费者的代码封装成函数或类，提高代码的可维护性。
+3. **注释**：添加必要的注释，解释代码的功能和关键参数。
+
+### 代码示例
+
+``` 
+from kafka import KafkaProducer
+import json
+
+def create_producer():
+    producer = KafkaProducer(
+        bootstrap_servers='localhost:9092',
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    return producer
+
+def send_message(producer, topic, message):
+    try:
+        future = producer.send(topic, message)
+        result = future.get(timeout=10)
+        print(f"Message sent to partition {result.partition}, offset {result.offset}")
+    except Exception as e:
+        print(f"Error sending message: {e}")
+
+if __name__ == "__main__":
+    producer = create_producer()
+    topic = 'test_topic'
+    message = {'key': 'value'}
+    send_message(producer, topic, message)
+    producer.close()    
+``` 
+
+### 代码解释
+- **生产者**：创建一个`KafkaProducer`实例，使用`send()`方法发送消息，并通过`future.get()`等待消息发送结果。
+- **消费者**：创建一个`KafkaConsumer`实例，使用`for`循环消费消息，直到用户手动中断。

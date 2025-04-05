@@ -1,0 +1,220 @@
+---
+description: vue最佳实践与开发规范
+globs: 
+alwaysApply: false
+---
+---
+description:Vue 3 项目最佳实践与编码标准，本规范涵盖代码组织、性能优化、安全性、测试、工具链及常见陷阱，旨在指导开发者编写高质量、可维护的Vue 3应用。 
+globs:"**/*.vue"
+alwaysApply:true
+---
+
+### Vue 3 项目最佳实践与编码标准  
+ 
+#### 一、代码组织与结构  
+1. **目录结构**  
+   采用基于功能的目录结构，将相关文件（组件、状态管理、工具函数）按功能模块分组，而非按文件类型划分，提升可维护性和可发现性。  
+   - 示例：  
+     ```  
+     src/  
+       components/          # 全局通用组件  
+         MyComponent.vue  
+         ...  
+       views/               # 页面级视图  
+         MyView.vue  
+         ...  
+       features/            # 功能模块（按业务划分）  
+         user-profile/       # 用户资料模块  
+           components/       # 模块内专属组件  
+             UserProfileCard.vue  
+           composables/      # 组合式函数  
+             useUserProfileData.js  
+           store/            # 状态管理  
+             userProfile.js  
+         ...  
+     ```  
+
+2. **文件命名规范**  
+   - 组件文件：PascalCase（如 `MyComponent.vue`）  
+   - 变量/函数：camelCase（如 `myVariable`, `myFunction`）  
+   - 模板中的组件选择器：kebab-case（如 `<my-component>`）  
+
+3. **模块组织**  
+   使用ES模块（`import`/`export`）实现模块化和代码复用，将相关功能和组件分组到模块中。  
+
+4. **组件架构**  
+   - 推荐基于组件的架构，设计小巧、可复用、可组合的组件。  
+   - 通过`props`输入数据，通过`events`输出数据。  
+   - 可考虑使用组件库（如Vuetify、Element Plus）减少重复开发。  
+
+5. **代码拆分策略**  
+   对组件和路由实现懒加载，通过动态导入按需加载模块，减小初始包体积。  
+   - 示例：  
+     ```javascript  
+     // 基于路由的代码拆分  
+     const routes = [  
+       {  
+         path: '/about',  
+         component: () => import('./views/About.vue')  
+       }  
+     ]  
+     ```  
+
+
+#### 二、通用模式与反模式  
+1. **设计模式**  
+   - **组合式API**：将组件逻辑封装到可复用的组合式函数中，提升代码组织性。  
+   - **Provider/Inject**：使用`provide`和`inject`避免组件间props层级嵌套，实现跨层级数据共享。  
+
+2. **推荐实践**  
+   - `v-model`实现双向数据绑定，`computed`处理派生状态，`watch`处理副作用。  
+   - 优先使用组合式API（Composition API）提升代码复用性和可维护性。  
+
+3. **反模式与代码异味**  
+   - 避免直接修改`props`，避免过度使用全局变量，避免在模板中编写复杂逻辑，避免组件间强耦合，避免过度设计。  
+
+4. **状态管理**  
+   - 复杂应用选择状态管理方案（如Vuex、Pinia），Vue 3推荐Pinia（API更简单，TypeScript支持更好）。  
+   - 通过`actions`和`mutations`解耦组件与状态管理逻辑。  
+
+5. **错误处理**  
+   - 全局错误处理：使用`app.config.errorHandler`。  
+   - 同步错误：`try...catch`，异步错误：`Promise.catch`，提供友好的用户错误提示。  
+   - 示例：  
+     ```javascript  
+     // 全局错误处理器  
+     app.config.errorHandler = (err, vm, info) => {  
+       console.error('全局错误:', err, info);  
+       // 上报错误或显示用户友好信息  
+     }  
+     ```  
+
+
+#### 三、性能优化  
+1. **渲染优化**  
+   - `v-once`渲染静态内容，`v-memo`缓存模板片段，`v-for`中使用`key`提升渲染效率。  
+
+2. **内存管理**  
+   - 通过`onBeforeUnmount`生命周期钩子清理事件监听和定时器，避免内存泄漏。  
+
+3. **虚拟DOM优化**  
+   - 合理使用`ref`和`reactive`，减少不必要的重新渲染；在函数式组件中使用`shouldUpdate`控制更新。  
+
+4. **包体积优化**  
+   - 代码拆分、摇树优化（Tree Shaking）、压缩混淆，移除未使用的依赖，选择轻量库。  
+
+5. **懒加载**  
+   - 对组件、路由、图片实现懒加载，图片可使用`IntersectionObserver`API。  
+
+
+#### 四、安全最佳实践  
+1. **常见漏洞防护**  
+   - XSS：净化用户输入；CSRF：使用CSRF令牌；SQL注入：参数化查询。  
+
+2. **输入验证**  
+   - 客户端和服务端双重验证，校验数据类型和格式，转义特殊字符。  
+
+3. **认证与授权**  
+   - 使用HTTPS加密通信，密码哈希加盐存储，实现安全的认证授权机制。  
+
+4. **数据保护**  
+   - 加密敏感数据，避免在客户端存储敏感信息，遵循隐私规范。  
+
+5. **API安全**  
+   - API使用HTTPS，验证响应数据，实现速率限制防止滥用。  
+
+
+#### 五、测试策略  
+1. **单元测试**  
+   - 测试单个组件、函数和模块，使用Jest或Vitest作为测试运行器，通过mock依赖隔离代码。  
+
+2. **集成测试**  
+   - 验证组件和模块间的交互，使用Vue Test Utils进行组件测试。  
+
+3. **端到端测试**  
+   - 模拟用户交互，验证整体功能，使用Cypress或Playwright。  
+
+4. **测试组织**  
+   - 按测试对象（组件/模块）划分测试目录，使用描述性测试名称。  
+
+5. **模拟与桩化**  
+   - 使用`jest.mock`或`vi.mock`模拟模块，隔离代码并模拟依赖。  
+
+
+#### 六、常见陷阱与注意事项  
+1. **高频错误**  
+   - 忘记注册组件、错误使用`v-if`和`v-show`、直接修改props、未正确处理异步操作、忽略错误提示。  
+
+2. **边界情况**  
+   - 处理空数组/对象、浏览器兼容性问题、复杂组件的状态管理。  
+
+3. **版本特定问题**  
+   - 注意Vue 2到Vue 3的破坏性变更，避免使用已废弃的API。  
+
+4. **兼容性**  
+   - 确保跨浏览器和设备兼容，测试不同屏幕尺寸和分辨率。  
+
+5. **调试策略**  
+   - 使用Vue Devtools调试，`console.log`打印变量，调试器单步执行代码。  
+
+
+#### 七、工具链与环境  
+1. **推荐开发工具**  
+   - VS Code + Volar扩展（Vue 3开发），Vue CLI或Vite项目脚手架，Vue Devtools调试。  
+
+2. **构建配置**  
+   - 配置Webpack或Rollup，优化生产构建，使用环境变量管理配置。  
+
+3. **代码检查与格式化**  
+   - ESLint + `eslint-plugin-vue`进行代码检查，Prettier统一代码格式，配置规则强制代码风格。  
+
+4. **部署最佳实践**  
+   - 使用CDN加速静态资源，SSR/预渲染优化SEO，部署到可靠的托管平台。  
+
+5. **CI/CD集成**  
+   - 将代码检查、测试、构建集成到CI/CD流水线，使用自动化部署工具，监控应用性能和错误。  
+
+
+#### 八、额外最佳实践  
+1. **可访问性（A11y）**  
+   - 使用语义化HTML，按需添加ARIA属性，通过屏幕阅读器测试组件可访问性。  
+
+2. **国际化（i18n）**  
+   - 如需多语言支持，早期集成`vue-i18n`等库管理翻译。  
+
+3. **文档化**  
+   - 使用JSDoc注释组件和组合式函数，通过Storybook自动生成组件文档。  
+
+
+#### 九、Vue 3 特定建议  
+1. **TypeScript**  
+   - 使用TypeScript增强类型安全，为组件`props`和`emits`添加类型注解。  
+
+2. **Teleport组件**  
+   - 用于将内容渲染到组件DOM层级之外（如模态框、工具提示）。  
+
+3. **Suspense组件**  
+   - 优雅处理异步依赖，加载数据时显示加载占位内容。  
+
+
+#### 十、命名规范总结  
+- **组件**：PascalCase（如 `MyComponent.vue`）  
+- **变量/函数**：camelCase（如 `myVariable`, `myFunction`）  
+- **Props/事件**：camelCase（如 `myProp`, `myEvent`）  
+- **指令**：kebab-case（如 `v-my-directive`）  
+
+
+#### 十一、组合式API最佳实践  
+1. **响应式引用**  
+   - 基本类型用`ref`，对象用`reactive`。  
+2. **只读引用**  
+   - `readonly`防止响应式数据被意外修改。  
+3. **计算属性**  
+   - `computed`处理派生状态，避免在模板中编写复杂逻辑。  
+4. **生命周期钩子**  
+   - 使用`onMounted`、`onUpdated`、`onUnmounted`管理组件生命周期。  
+5. **监听器**  
+   - `watch`响应数据变化并执行副作用。  
+
+
+通过遵循以上规范，可确保Vue 3项目的代码质量、可维护性和性能，同时降低开发和维护成本。

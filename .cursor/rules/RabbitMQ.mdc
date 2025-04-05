@@ -1,0 +1,112 @@
+---
+description: RabbitMQ最佳实践与开发规范
+globs: 
+alwaysApply: false
+---
+RabbitMQ 的最佳实践与编码规范：
+
+### 最佳实践
+
+#### 1. 连接管理
+- **连接复用**：避免频繁创建和销毁连接，应复用现有的连接。一个应用程序通常只需要一个连接，通过该连接创建多个信道（Channel）来进行不同的操作。
+- **连接池**：在高并发场景下，可以考虑使用连接池来管理连接，确保连接资源的有效利用。
+- **错误处理**：在建立连接和使用过程中，要处理可能出现的连接错误和异常，如网络中断、服务器故障等，进行重试或通知管理员。
+
+#### 2. 队列与交换器设计
+- **命名规范**：队列和交换器的名称应具有明确的含义，遵循一定的命名规则，便于管理和维护。例如，使用业务名称、环境名称等作为前缀。
+- **持久化设置**：对于重要的消息，应将队列和交换器设置为持久化，确保在 RabbitMQ 服务器重启后消息不会丢失。
+- **合理选择交换器类型**：根据业务需求选择合适的交换器类型，如直连交换器（Direct Exchange）、扇形交换器（Fanout Exchange）、主题交换器（Topic Exchange）和头交换器（Headers Exchange）。
+
+#### 3. 消息处理
+- **消息确认机制**：启用消息确认机制（ACK），确保消息被正确处理。生产者可以使用发布确认（Publisher Confirm）来确认消息是否成功发送到交换器，消费者可以使用手动确认（Manual ACK）来确认消息是否被正确处理。
+- **消息持久化**：对于重要的消息，应将消息设置为持久化，确保在 RabbitMQ 服务器重启后消息不会丢失。
+- **消息过期处理**：设置消息的过期时间（TTL），避免消息长时间占用队列空间。可以在队列级别或消息级别设置 TTL。
+- **死信队列**：使用死信队列（Dead Letter Queue）来处理无法处理的消息，如消息过期、队列达到最大长度等。
+
+#### 4. 流量控制
+- **预取计数**：在消费者端设置预取计数（Prefetch Count），控制消费者一次从队列中获取的消息数量，避免消费者处理不过来导致内存溢出。
+- **限流机制**：在生产者端实现限流机制，避免发送过多的消息导致 RabbitMQ 服务器压力过大。
+
+#### 5. 监控与日志
+- **监控工具**：使用 RabbitMQ 提供的监控工具，如管理界面、命令行工具等，实时监控 RabbitMQ 服务器的状态和性能指标。
+- **日志记录**：记录重要的操作和错误信息，便于排查问题和分析系统运行情况。
+
+### 编码规范
+
+#### 1. 通用规范
+- **注释**：在代码中添加必要的注释，解释代码的功能、使用方法和注意事项。
+- **异常处理**：捕获并处理可能出现的异常，避免程序崩溃。
+- **资源管理**：确保在使用完连接、信道、队列等资源后及时关闭和释放。
+
+#### 2. 生产者代码规范
+```python
+import pika
+
+# 连接到 RabbitMQ 服务器
+connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+channel = connection.channel()
+
+# 声明交换器
+channel.exchange_declare(exchange='my_exchange', exchange_type='direct', durable=True)
+
+# 声明队列
+channel.queue_declare(queue='my_queue', durable=True)
+
+# 绑定队列和交换器
+channel.queue_bind(queue='my_queue', exchange='my_exchange', routing_key='my_routing_key')
+
+# 发送消息
+message = 'Hello, RabbitMQ!'
+channel.basic_publish(exchange='my_exchange',
+                      routing_key='my_routing_key',
+                      body=message,
+                      properties=pika.BasicProperties(
+                          delivery_mode=2  # 消息持久化
+                      ))
+
+print(f" [x] Sent '{message}'")
+
+# 关闭连接
+channel.close()
+connection.close()
+```
+- **连接建立**：在代码开始时建立连接，并在使用完后关闭连接。
+- **交换器和队列声明**：在发送消息前，确保交换器和队列已经声明，并且设置正确的属性。
+- **消息发送**：使用 `basic_publish` 方法发送消息，并设置消息的持久化属性。
+
+#### 3. 消费者代码规范
+```python
+import pika
+
+# 连接到 RabbitMQ 服务器
+connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+channel = connection.channel()
+
+# 声明交换器
+channel.exchange_declare(exchange='my_exchange', exchange_type='direct', durable=True)
+
+# 声明队列
+channel.queue_declare(queue='my_queue', durable=True)
+
+# 绑定队列和交换器
+channel.queue_bind(queue='my_queue', exchange='my_exchange', routing_key='my_routing_key')
+
+# 设置预取计数
+channel.basic_qos(prefetch_count=1)
+
+# 定义回调函数
+def callback(ch, method, properties, body):
+    print(f" [x] Received '{body}'")
+    # 手动确认消息
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+
+# 开始消费消息
+channel.basic_consume(queue='my_queue', on_message_callback=callback)
+
+print(' [*] Waiting for messages. To exit press CTRL+C')
+channel.start_consuming()
+```
+- **连接建立**：在代码开始时建立连接，并在使用完后关闭连接。
+- **交换器和队列声明**：在消费消息前，确保交换器和队列已经声明，并且设置正确的属性。
+- **预取计数设置**：使用 `basic_qos` 方法设置预取计数，控制消费者一次从队列中获取的消息数量。
+- **回调函数**：定义一个回调函数来处理接收到的消息，并在处理完成后手动确认消息。

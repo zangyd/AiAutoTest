@@ -1,0 +1,294 @@
+---
+description: Pytest最佳实践与开发规范
+globs: 
+alwaysApply: false
+---
+---
+description:pytest 最佳实践全面指南，本文档提供了在 Python 项目中有效使用 pytest 的详细指南，涵盖从代码组织到安全考量的各个方面。旨在为开发人员提供可操作的建议，以改进测试实践并构建健壮的应用程序。
+globs:"**/*.py"
+alwaysApply:true
+---
+
+# pytest 最佳实践：全面指南  
+
+## 库信息  
+- 名称：pytest  
+- 标签：开发、测试、Python  
+
+
+## 1. 代码组织与结构  
+良好的代码结构对可维护性和可测试性至关重要。以下是构建 pytest 项目的最佳实践：  
+
+### 1.1 目录结构  
+- **独立的 `tests/` 目录**：将测试代码与应用代码分离，通常命名为 `tests/`，以确保隔离性和清晰的项目结构。  
+  ```  
+  my_project/  
+  ├── my_app/  
+  │   ├── __init__.py  
+  │   ├── module1.py  
+  │   └── module2.py  
+  ├── tests/  
+  │   ├── __init__.py  
+  │   ├── test_module1.py  
+  │   └── test_module2.py  
+  └── pyproject.toml  
+  ```  
+
+- **推荐 `src` 布局**：使用 `src` 布局进一步隔离应用代码与项目根目录，避免导入冲突并提升清晰度。  
+  ```  
+  my_project/  
+  ├── src/  
+  │   └── my_app/  
+  │       ├── __init__.py  
+  │       ├── module1.py  
+  │       └── module2.py  
+  ├── tests/  
+  │   ├── __init__.py  
+  │   ├── test_module1.py  
+  │   └── test_module2.py  
+  └── pyproject.toml  
+  ```  
+
+### 1.2 文件命名规范  
+- **`test_*.py` 或 `*_test.py`**：pytest 会自动发现符合这些模式的测试文件。  
+- **描述性名称**：使用清晰易懂的文件名表明测试内容（如 `test_user_authentication.py`）。  
+
+### 1.3 模块组织  
+- **镜像应用结构**：测试模块的结构应与应用代码一致，便于定位特定模块的测试用例。  
+- **`__init__.py`**：在测试目录中包含该文件，确保其被视为 Python 包。  
+
+### 1.4 组件架构  
+- **组件隔离**：设计具有明确边界的组件，便于独立测试。  
+- **依赖注入**：通过依赖注入为组件提供依赖，便于在测试中模拟和 stub 外部资源。  
+
+### 1.5 代码拆分  
+- **小而专注的函数**：将大型函数拆分为更小、功能单一的函数，便于测试。  
+- **模块化设计**：按职责将代码组织到不同模块中。  
+
+
+## 2. 常见模式与反模式  
+### 2.1 设计模式  
+- **安排-执行-断言（AAA）模式**：按此模式组织测试，提升可读性。  
+  ```python  
+  def test_example():  
+      # 安排：设置测试环境和数据  
+      data = ...  
+      expected_result = ...  
+
+      # 执行：调用被测代码  
+      result = function_under_test(data)  
+
+      # 断言：验证结果  
+      assert result == expected_result  
+  ```  
+
+- **夹具工厂（Fixture Factory）**：创建可复用的测试数据工厂。  
+  ```python  
+  import pytest  
+
+  @pytest.fixture  
+  def user_factory():  
+      def create_user(username, email):  
+          return {"username": username, "email": email}  
+      return create_user  
+
+  def test_create_user(user_factory):  
+      user = user_factory("testuser", "test@example.com")  
+      assert user["username"] == "testuser"  
+  ```  
+
+### 2.2 推荐实践  
+- **使用夹具处理前置/后置操作**：夹具可管理测试依赖并确保环境干净。  
+- **参数化测试**：通过 `@pytest.mark.parametrize` 用不同输入运行同一测试，减少代码重复。  
+- **测试与夹具命名清晰**：便于理解其用途。  
+- **单测试单断言**：每个测试仅包含一个断言，便于定位失败点。  
+
+### 2.3 反模式与代码异味  
+- **过度依赖夹具**：避免为简单数据创建过多夹具，直接在测试中定义未复用的数据。  
+- **隐式依赖**：通过参数显式传递依赖，而非隐式引用。  
+- **测试实现细节**：聚焦代码行为而非实现，提升测试对重构的耐受性。  
+- **无理由跳过测试**：跳过测试需注明原因或添加注释。  
+
+### 2.4 状态管理  
+- **无状态测试**：确保测试独立，避免副作用，每个测试自行设置和清理数据。  
+- **夹具作用域**：使用作用域（`session`、`module`、`function`）控制夹具生命周期，有效管理状态。  
+
+### 2.5 错误处理  
+- **测试异常处理**：验证代码是否正确处理异常。  
+  ```python  
+  import pytest  
+
+  def divide(a, b):  
+      if b == 0:  
+          raise ValueError("Cannot divide by zero")  
+      return a / b  
+
+  def test_divide_by_zero():  
+      with pytest.raises(ValueError) as e:  
+          divide(10, 0)  
+      assert str(e.value) == "Cannot divide by zero"  
+  ```  
+- **使用 `pytest.raises`**：断言特定异常是否被抛出。  
+- **日志验证**：测试代码是否正确记录错误日志。  
+
+
+## 3. 性能考量  
+### 3.1 优化技巧  
+- **定位慢测试**：通过 `--durations` 选项识别耗时测试并优化。  
+- **并行执行**：使用 `pytest-xdist` 并行运行测试，减少总耗时。安装后执行 `pytest -n auto`（`auto` 自动使用所有可用核心）。  
+- **缓存**：缓存昂贵计算，避免测试中重复运算。  
+
+### 3.2 内存管理  
+- **资源清理**：确保测试释放分配的资源（如临时文件、数据库连接）。  
+- **限制夹具作用域**：合理选择作用域，减少夹具生命周期和内存占用。  
+
+### 3.3 包大小优化  
+- **不适用**：pytest 本身不直接影响包大小，应用代码需单独优化。  
+
+### 3.4 延迟加载  
+- **不适用**：延迟加载更适用于应用代码，但必要时可在夹具中使用以推迟初始化。  
+
+
+## 4. 安全最佳实践  
+### 4.1 常见漏洞  
+- **注入攻击**：通过验证和清理用户输入防止注入。  
+- **跨站脚本（XSS）**：转义用户生成内容以抵御 XSS 漏洞。  
+- **认证授权缺陷**：实现安全的认证授权机制，保护敏感数据。  
+
+### 4.2 输入验证  
+- **全量输入验证**：确保所有用户输入符合预期格式和范围。  
+- **参数化测试**：用多种输入（包括边界值和非法值）测试输入验证逻辑。  
+
+### 4.3 认证与授权  
+- **认证测试**：验证认证机制是否正确工作。  
+- **授权测试**：验证用户仅能访问其有权限的资源。  
+
+### 4.4 数据保护  
+- **敏感数据加密**：对静态和传输中的敏感数据加密。  
+- **安全存储**：将敏感数据存储在具有适当访问控制的安全位置。  
+
+### 4.5 安全 API 通信  
+- **使用 HTTPS**：通过 HTTPS 保护传输中的数据。  
+- **验证 API 响应**：确保响应有效且未被篡改。  
+
+
+## 5. 测试策略  
+### 5.1 单元测试  
+- **测试单个单元**：聚焦函数、方法或类的独立测试。  
+- **模拟依赖**：通过模拟隔离被测单元与依赖。  
+
+### 5.2 集成测试  
+- **测试组件交互**：验证不同组件间的协作。  
+- **使用真实依赖（适当场景）**：对数据库、外部 API 等依赖，可使用测试容器确保组件协同工作。  
+
+### 5.3 端到端测试  
+- **测试完整工作流**：模拟用户从开始到结束的完整操作流程。  
+- **浏览器自动化**：使用 Selenium 或 Playwright 模拟用户与应用的交互。  
+
+### 5.4 测试组织  
+- **按功能分组**：按测试功能组织测试用例，提升可维护性。  
+- **清晰命名规范**：通过测试名和文件名明确测试内容。  
+
+### 5.5 模拟与 Stubbing  
+- **使用 `mocker` 夹具**：通过 `pytest-mock` 插件提供的 `mocker` 简化模拟。  
+- **模拟外部依赖**：隔离测试，避免依赖外部资源。  
+- **`autospec=True`**：确保模拟对象与原对象 API 一致，减少实现错误。  
+  ```python  
+  def test_example(mocker):  
+      mock_external_api = mocker.patch("module.external_api", autospec=True)  
+      mock_external_api.return_value = {"data": "test data"}  
+  ```  
+
+
+## 6. 常见陷阱与注意事项  
+### 6.1 高频错误  
+- **测试未隔离**：导致结果不可预测，增加调试难度。  
+- **测试实现细节**：使测试脆弱，难以维护。  
+- **忽略警告**：pytest 的警告可能隐藏测试中的潜在问题。  
+
+### 6.2 边界情况  
+- **空输入**：验证代码能否优雅处理空输入。  
+- **非法输入**：确保代码正确处理无效输入并抛出异常。  
+- **边界条件**：测试临界值（如数组越界、数值极值）。  
+
+### 6.3 版本特定问题  
+- **查看发布说明**：关注 pytest 新版本的 breaking changes 或新特性。  
+- **锁定依赖**：固定 pytest 版本，避免更新导致的意外行为。  
+
+### 6.4 兼容性问题  
+- **检查兼容性**：确认 pytest 与其他技术（如特定 Python 或 Django 版本）的兼容性。  
+
+### 6.5 调试策略  
+- **使用 `--pdb`**：测试失败时进入 Python 调试器。  
+- **日志输出**：在测试中添加日志辅助调试。  
+- **简化测试**：通过简化失败用例定位问题根源。  
+
+
+## 7. 工具与环境  
+### 7.1 推荐开发工具  
+- **IDE**：使用支持 pytest 的 IDE（如带 Python 插件的 VS Code、PyCharm 或 Sublime Text）。  
+- **pytest-watch**：文件变更时自动重新运行测试，安装后执行 `ptw`。  
+
+### 7.2 构建配置  
+- **使用 `pyproject.toml`**：配置 pytest 设置。  
+  ```toml  
+  [tool.pytest.ini_options]  
+  addopts = [  
+      "--cov=my_app",  
+      "--cov-report term-missing",  
+      "-v",  
+  ]  
+  testpaths = [  
+      "tests",  
+  ]  
+  ```  
+
+### 7.3 代码检查与格式化  
+- **`flake8-pytest-style`**：安装后检查 pytest 特定编码规范（`pip install flake8 flake8-pytest-style`）。  
+- **代码格式化工具**：使用 `black` 或 `autopep8` 确保格式一致（`pip install black`，执行 `black .`）。  
+
+### 7.4 部署  
+- **测试纳入部署流程**：在部署管道中运行测试，防止回归。  
+- **专用测试环境**：避免测试影响生产环境。  
+
+### 7.5 CI/CD 集成  
+- **集成 CI/CD 系统**：如 GitHub Actions、GitLab CI 或 Jenkins，每次提交自动运行测试。  
+  **示例 GitHub Actions 工作流**（`.github/workflows/test.yml`）：  
+  ```  
+  name: Test  
+  on:  
+    push:  
+      branches: [ main ]  
+    pull_request:  
+      branches: [ main ]  
+  jobs:  
+    build:  
+      runs-on: ubuntu-latest  
+      steps:  
+        - uses: actions/checkout@v3  
+        - name: Set up Python 3.10  
+          uses: actions/setup-python@v3  
+          with:  
+            python-version: "3.10"  
+        - name: Install dependencies  
+          run: |  
+            python -m pip install --upgrade pip  
+            pip install pytest pytest-cov flake8 flake8-pytest-style black  
+            pip install -e .  # 安装项目到可编辑模式  
+        - name: Lint with flake8  
+          run: |  
+            flake8 .  
+        - name: Test with pytest  
+          run: |  
+            pytest --cov --cov-report xml  
+        - name: Upload coverage to Codecov  
+          uses: codecov/codecov-action@v3  
+          with:  
+            token: ${{ secrets.CODECOV_TOKEN }}  
+            flags: unittests  
+            env_vars: OS,PYTHON  
+            name: codecov-pytest  
+  ```  
+
+
+遵循这些最佳实践，您可以使用 pytest 编写高效、可维护的测试，提升 Python 应用的质量和可靠性。
