@@ -1,5 +1,5 @@
-from typing import Optional
 from pydantic import BaseSettings
+
 
 class MySQLSettings(BaseSettings):
     MYSQL_HOST: str = "localhost"
@@ -10,9 +10,10 @@ class MySQLSettings(BaseSettings):
     MYSQL_CHARSET: str = "utf8mb4"
     MYSQL_POOL_SIZE: int = 20
     MYSQL_POOL_RECYCLE: int = 3600
-    
+
     class Config:
         env_prefix = "MYSQL_"
         case_sensitive = True
 
-mysql_settings = MySQLSettings() 
+
+mysql_settings = MySQLSettings()
