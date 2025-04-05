@@ -1,0 +1,86 @@
+# 自动检测文本文件并进行LF标准化
+* text=auto eol=lf
+
+# 源代码文件
+*.py text diff=python
+*.js text
+*.ts text
+*.tsx text
+*.jsx text
+*.vue text
+*.css text diff=css
+*.scss text diff=css
+*.html text diff=html
+*.json text
+*.yml text
+*.yaml text
+*.md text diff=markdown
+*.sql text
+
+# 文档文件
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# 图片文件
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+
+# 字体文件
+*.ttf binary
+*.eot binary
+*.woff binary
+*.woff2 binary
+
+# 音视频文件
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.flv binary
+
+# 压缩文件
+*.zip binary
+*.gz binary
+*.tar binary
+*.tgz binary
+
+# Git LFS配置
+# 图片
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.gif filter=lfs diff=lfs merge=lfs -text
+*.ico filter=lfs diff=lfs merge=lfs -text
+
+# 文档
+*.pdf filter=lfs diff=lfs merge=lfs -text
+*.doc filter=lfs diff=lfs merge=lfs -text
+*.docx filter=lfs diff=lfs merge=lfs -text
+*.xls filter=lfs diff=lfs merge=lfs -text
+*.xlsx filter=lfs diff=lfs merge=lfs -text
+*.ppt filter=lfs diff=lfs merge=lfs -text
+*.pptx filter=lfs diff=lfs merge=lfs -text
+
+# 音视频
+*.mp3 filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.wav filter=lfs diff=lfs merge=lfs -text
+*.flv filter=lfs diff=lfs merge=lfs -text
+
+# 压缩文件
+*.zip filter=lfs diff=lfs merge=lfs -text
+*.gz filter=lfs diff=lfs merge=lfs -text
+*.tar filter=lfs diff=lfs merge=lfs -text
+*.tgz filter=lfs diff=lfs merge=lfs -text
+
+# 数据文件
+*.db filter=lfs diff=lfs merge=lfs -text
+*.sqlite3 filter=lfs diff=lfs merge=lfs -text 

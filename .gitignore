@@ -75,3 +75,35 @@ scripts/**/logs/
 
 # Others
 user_temp/
+
+# 容器相关
+docker-compose.override.yml
+
+# 测试相关
+.tox/
+.nox/
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+
+# 虚拟环境
+.venv
+venv/
+ENV/
+
+# 前端构建缓存
+.nuxt
+.next
+.cache
+
+# 后端缓存
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 本地配置
+*.local.yml
+*.local.yaml
+*.local.json

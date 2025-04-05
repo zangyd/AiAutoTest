@@ -11,6 +11,7 @@
 
 本项目使用 GitHub Actions 实现自动化的持续集成（CI）和持续部署（CD）流程。工作流配置文件位于 `.github/workflows` 目录下：
 
+- `code-check.yml`: 代码检查配置
 - `ci.yml`: 持续集成配置
 - `cd.yml`: 持续部署配置
 
@@ -21,7 +22,21 @@
 - 创建 Pull Request 到 `main` 分支
 
 ### 工作流程
-1. 后端测试（backend-test）
+1. 代码检查（code-check）
+   - 后端代码检查
+     * Black：代码格式检查
+     * isort：导入顺序检查
+     * mypy：类型检查
+     * flake8：代码风格检查
+     * bandit：安全漏洞检查
+     * safety：依赖安全检查
+   - 前端代码检查
+     * ESLint：代码规范检查
+     * TypeScript：类型检查
+     * Prettier：代码格式检查
+     * npm audit：依赖安全检查
+
+2. 后端测试（backend-test）
    - 启动测试环境
      * MySQL 8.0
      * MongoDB 6.0
@@ -30,7 +45,7 @@
      * 安装依赖
      * 执行单元测试
 
-2. 前端测试（frontend-test）
+3. 前端测试（frontend-test）
    - 安装 Node.js 环境
    - 安装项目依赖
    - 运行单元测试
@@ -115,22 +130,34 @@
 
 ## 常见问题
 
-### 1. Docker 构建失败
+### 1. 代码检查失败
+- 格式问题
+  * 运行 `black .` 自动格式化Python代码
+  * 运行 `isort .` 自动排序导入
+  * 运行 `npm run format` 格式化前端代码
+- 类型问题
+  * 检查Python类型注解是否正确
+  * 检查TypeScript类型定义是否完整
+- 安全问题
+  * 更新有安全隐患的依赖包
+  * 检查并修复代码中的安全隐患
+
+### 2. Docker 构建失败
 - 检查 Dockerfile 是否存在
 - 验证构建上下文路径
 - 确认 Docker Hub 凭证正确
 
-### 2. 部署失败
+### 3. 部署失败
 - 验证服务器 SSH 连接
 - 检查服务器目录权限
 - 确认 docker-compose.yml 存在
 
-### 3. 测试环境问题
+### 4. 测试环境问题
 - 检查数据库连接配置
 - 验证环境变量设置
 - 确认依赖安装正确
 
-### 4. 版本发布流程
+### 5. 版本发布流程
 1. 创建新的版本标签
    ```bash
    git tag v1.0.0
