@@ -25,6 +25,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.pytest_cache/
 
 # Node
 node_modules/
@@ -53,7 +54,6 @@ temp/
 coverage/
 .coverage
 htmlcov/
-.pytest_cache/
 .mypy_cache/
 
 # Database
@@ -99,7 +99,6 @@ ENV/
 
 # 后端缓存
 __pycache__/
-.pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
