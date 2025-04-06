@@ -1,0 +1,14 @@
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/public/
+frontend/src/assets/
+frontend/src/components/
+frontend/src/components/
+frontend/src/components/
+.git/
+.gitignore
+.cursorignore
+.env.local
+.env.development.local
+.env.test.local
