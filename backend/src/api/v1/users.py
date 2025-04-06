@@ -13,6 +13,7 @@ from ..deps import get_current_user, check_permissions
 from ..models import UserBase, UserCreate, UserUpdate, UserOut, PermissionEnum
 from ...core.auth.dependencies import get_current_active_user
 from ...core.auth.permissions import require_permission, require_any_permission
+from ...core.logging import logger, log_method_call, log_data_change
 
 # 模拟数据库
 users_db = {
@@ -52,6 +53,8 @@ router = APIRouter(prefix="/api/v1/users", tags=["用户管理"])
     }
 )
 @require_permission(PermissionEnum.USER_CREATE)
+@log_method_call("创建用户")
+@log_data_change(UserOut, "create")
 async def create_user(
     user: UserCreate,
     current_user: UserOut = Depends(get_current_active_user)
@@ -113,6 +116,7 @@ async def create_user(
     }
 )
 @require_permission(PermissionEnum.USER_READ)
+@log_method_call("获取用户列表")
 async def get_users(
     pagination: PaginationParams = Depends(),
     query: QueryParams = Depends(),
@@ -180,6 +184,7 @@ async def get_users(
     }
 )
 @require_permission(PermissionEnum.USER_READ)
+@log_method_call("获取用户详情")
 async def get_user(
     user_id: int = Path(..., description="用户ID"),
     current_user: UserOut = Depends(get_current_active_user)
@@ -230,6 +235,8 @@ async def get_user(
     }
 )
 @require_permission(PermissionEnum.USER_UPDATE)
+@log_method_call("更新用户信息")
+@log_data_change(UserOut, "update")
 async def update_user(
     user_id: int = Path(..., description="用户ID"),
     user: UserUpdate = Body(..., description="用户更新信息"),
@@ -294,6 +301,8 @@ async def update_user(
     }
 )
 @require_permission(PermissionEnum.USER_DELETE)
+@log_method_call("删除用户")
+@log_data_change(UserOut, "delete")
 async def delete_user(
     user_id: int = Path(..., description="用户ID"),
     current_user: UserOut = Depends(get_current_active_user)
