@@ -1,0 +1,28 @@
+# Android设备配置
+android:
+  capabilities:
+    platformName: "Android"
+    automationName: "UiAutomator2"
+    deviceName: "Android Emulator"
+    appPackage: "com.example.myapp"  # 替换为实际的应用包名
+    appActivity: ".MainActivity"      # 替换为实际的主Activity
+    noReset: true
+    newCommandTimeout: 7200
+    autoGrantPermissions: true
+
+# iOS设备配置    
+ios:
+  capabilities:
+    platformName: "iOS"
+    automationName: "XCUITest"
+    deviceName: "iPhone Simulator"
+    bundleId: "com.example.myapp"    # 替换为实际的Bundle ID
+    noReset: true
+    newCommandTimeout: 7200
+    autoGrantPermissions: true
+
+# 测试配置
+test_settings:
+  implicit_wait: 10  # 隐式等待时间(秒)
+  explicit_wait: 20  # 显式等待时间(秒)
+  polling_interval: 0.5  # 轮询间隔(秒) 

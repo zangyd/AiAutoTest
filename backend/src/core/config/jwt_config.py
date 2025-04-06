@@ -5,9 +5,12 @@
 
 from datetime import timedelta
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 
 class JWTSettings(BaseSettings):
     """JWT配置类"""
+    
+    model_config = ConfigDict(env_prefix="JWT_")
     
     # JWT密钥
     SECRET_KEY: str = "your-secret-key"
@@ -44,10 +47,6 @@ class JWTSettings(BaseSettings):
             self.access_token_expires,
             self.refresh_token_expires
         ) + timedelta(hours=1)  # 额外添加1小时作为安全边界
-    
-    class Config:
-        """配置类"""
-        env_prefix = "JWT_"  # 环境变量前缀
 
 # 创建全局JWT配置实例
 jwt_settings = JWTSettings() 
