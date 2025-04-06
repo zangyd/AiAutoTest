@@ -10,7 +10,9 @@ from ..base import (
     StatusEnum
 )
 from ..deps import get_current_user, check_permissions
-from ..models import UserBase, UserCreate, UserUpdate, UserOut
+from ..models import UserBase, UserCreate, UserUpdate, UserOut, PermissionEnum
+from ...core.auth.dependencies import get_current_active_user
+from ...core.auth.permissions import require_permission, require_any_permission
 
 # 模拟数据库
 users_db = {
@@ -40,8 +42,8 @@ router = APIRouter(prefix="/api/v1/users", tags=["用户管理"])
     "",
     response_model=ResponseModel[UserOut],
     summary="创建用户",
-    description="创建新用户账号",
-    status_code=201,
+    description="创建新用户，需要user:create权限",
+    status_code=status.HTTP_201_CREATED,
     responses={
         201: {"description": "创建成功"},
         422: {"model": ErrorModel, "description": "请求参数错误"},
@@ -49,9 +51,10 @@ router = APIRouter(prefix="/api/v1/users", tags=["用户管理"])
         403: {"model": ErrorModel, "description": "权限不足"},
     }
 )
+@require_permission(PermissionEnum.USER_CREATE)
 async def create_user(
     user: UserCreate,
-    current_user: UserOut = Depends(get_current_user)
+    current_user: UserOut = Depends(get_current_active_user)
 ) -> ResponseModel[UserOut]:
     """
     创建用户接口
@@ -102,17 +105,18 @@ async def create_user(
     "",
     response_model=ResponseModel[PageModel[UserOut]],
     summary="获取用户列表",
-    description="分页获取用户列表",
+    description="获取用户列表，需要user:read权限",
     responses={
         200: {"description": "获取成功"},
         401: {"model": ErrorModel, "description": "未授权"},
         403: {"model": ErrorModel, "description": "权限不足"},
     }
 )
+@require_permission(PermissionEnum.USER_READ)
 async def get_users(
     pagination: PaginationParams = Depends(),
     query: QueryParams = Depends(),
-    current_user: UserOut = Depends(get_current_user)
+    current_user: UserOut = Depends(get_current_active_user)
 ) -> ResponseModel[PageModel[UserOut]]:
     """
     获取用户列表接口
@@ -167,7 +171,7 @@ async def get_users(
     "/{user_id}",
     response_model=ResponseModel[UserOut],
     summary="获取用户详情",
-    description="根据用户ID获取用户详细信息",
+    description="获取指定用户的详细信息，需要user:read权限",
     responses={
         200: {"description": "获取成功"},
         401: {"model": ErrorModel, "description": "未授权"},
@@ -175,9 +179,10 @@ async def get_users(
         404: {"model": ErrorModel, "description": "用户不存在"},
     }
 )
+@require_permission(PermissionEnum.USER_READ)
 async def get_user(
     user_id: int = Path(..., description="用户ID"),
-    current_user: UserOut = Depends(get_current_user)
+    current_user: UserOut = Depends(get_current_active_user)
 ) -> ResponseModel[UserOut]:
     """
     获取用户详情接口
@@ -215,7 +220,7 @@ async def get_user(
     "/{user_id}",
     response_model=ResponseModel[UserOut],
     summary="更新用户信息",
-    description="更新指定用户的信息",
+    description="更新指定用户的信息，需要user:update权限",
     responses={
         200: {"description": "更新成功"},
         422: {"model": ErrorModel, "description": "请求参数错误"},
@@ -224,10 +229,11 @@ async def get_user(
         404: {"model": ErrorModel, "description": "用户不存在"},
     }
 )
+@require_permission(PermissionEnum.USER_UPDATE)
 async def update_user(
     user_id: int = Path(..., description="用户ID"),
     user: UserUpdate = Body(..., description="用户更新信息"),
-    current_user: UserOut = Depends(get_current_user)
+    current_user: UserOut = Depends(get_current_active_user)
 ) -> ResponseModel[UserOut]:
     """
     更新用户信息接口
@@ -279,7 +285,7 @@ async def update_user(
     "/{user_id}",
     response_model=ResponseModel[None],
     summary="删除用户",
-    description="删除指定用户",
+    description="删除指定用户，需要user:delete权限",
     responses={
         200: {"description": "删除成功"},
         401: {"model": ErrorModel, "description": "未授权"},
@@ -287,9 +293,10 @@ async def update_user(
         404: {"model": ErrorModel, "description": "用户不存在"},
     }
 )
+@require_permission(PermissionEnum.USER_DELETE)
 async def delete_user(
     user_id: int = Path(..., description="用户ID"),
-    current_user: UserOut = Depends(get_current_user)
+    current_user: UserOut = Depends(get_current_active_user)
 ) -> ResponseModel[None]:
     """
     删除用户接口
