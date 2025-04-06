@@ -16,6 +16,7 @@ import os
 import json
 import pytest
 import time
+import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
@@ -30,6 +31,13 @@ from pymongo.errors import (
 # 测试配置
 TEST_MONGO_URL = "mongodb://test_user:test_password@localhost:27017/test_db?authSource=admin"
 TEST_BACKUP_PATH = "/tmp/mongo_backup_test"
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """创建事件循环"""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 @pytest.fixture
 def mongo_manager():
@@ -184,8 +192,6 @@ def test_pool_management(mongo_manager):
 @pytest.mark.asyncio
 async def test_concurrent_operations(mongo_manager, test_collection):
     """测试并发操作"""
-    import asyncio
-    
     async def concurrent_find():
         return mongo_manager.execute_command(test_collection, "find", {})
     

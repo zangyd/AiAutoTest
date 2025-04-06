@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 
 class Settings(BaseSettings):
     # JWT配置
@@ -16,8 +17,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     
-    class Config:
-        env_file = ".env"
-        extra = "allow"  # 允许额外的环境变量
+    model_config = ConfigDict(
+        env_file=".env",
+        extra="allow"  # 允许额外的环境变量
+    )
 
 settings = Settings() 

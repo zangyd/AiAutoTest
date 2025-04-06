@@ -13,9 +13,9 @@ from datetime import datetime, timedelta
 from jose import jwt
 from starlette.middleware.sessions import SessionMiddleware
 
-from api.base import api_router
-from api.deps import get_current_user
-from api.models import UserOut
+from api.core.base import api_router
+from api.core.auth import get_current_user
+from api.core.base.models import UserOut
 from core.config.jwt_config import jwt_settings
 from core.auth.jwt import jwt_handler
 from core.logging import LoggingMiddleware

@@ -1,36 +1,12 @@
+"""
+基础响应模式定义
+"""
 from datetime import datetime, timezone
-from enum import Enum
 from typing import Generic, TypeVar, Optional, Any, Dict, List
-from fastapi import APIRouter, Query, Path, Body, HTTPException, status
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator, conint
+from pydantic import BaseModel, Field, validator, ConfigDict
 
 # 定义泛型类型变量
 T = TypeVar('T')
-
-# 标准化状态枚举
-class StatusEnum(str, Enum):
-    """状态枚举"""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    DELETED = "deleted"
-
-# 标准化优先级枚举
-class PriorityEnum(str, Enum):
-    """优先级枚举"""
-    P0 = "P0"  # 最高优先级
-    P1 = "P1"  # 高优先级
-    P2 = "P2"  # 中优先级
-    P3 = "P3"  # 低优先级
-    P4 = "P4"  # 最低优先级
-
-class DateTimeModelMixin(BaseModel):
-    """时间模型混入类"""
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class FilterParams(BaseModel):
     """过滤参数模型"""
@@ -68,10 +44,11 @@ class ResponseModel(BaseModel, Generic[T]):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="响应时间")
     request_id: Optional[str] = Field(default=None, description="请求追踪ID")
 
-    class Config:
-        json_encoders = {
+    model_config = ConfigDict(
+        json_encoders={
             datetime: lambda dt: dt.isoformat()
         }
+    )
 
 class PageModel(BaseModel, Generic[T]):
     """分页响应模型"""
@@ -92,52 +69,4 @@ class ErrorModel(BaseModel):
     code: int = Field(description="错误码")
     message: str = Field(description="错误消息")
     detail: Optional[Any] = Field(default=None, description="错误详情")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="错误发生时间")
-
-# 创建主路由
-api_router = APIRouter()
-
-# 导入并注册子路由
-from .v1 import users, auth
-
-api_router.include_router(users.router, prefix="/v1/users", tags=["用户"])
-api_router.include_router(auth.router, prefix="/v1", tags=["认证"])
-
-# 健康检查
-@api_router.get(
-    "/health",
-    response_model=ResponseModel[Dict[str, Any]],
-    summary="健康检查接口",
-    description="用于检查API服务的健康状态",
-    responses={
-        200: {
-            "description": "服务正常",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "code": 200,
-                        "message": "success",
-                        "data": {
-                            "status": "ok",
-                            "timestamp": "2024-04-05T10:00:00Z"
-                        }
-                    }
-                }
-            }
-        }
-    }
-)
-async def health_check():
-    """
-    健康检查接口
-    
-    返回:
-        - status: 服务状态
-        - timestamp: 当前时间
-    """
-    return ResponseModel(
-        data={
-            "status": "ok",
-            "timestamp": datetime.now(timezone.utc)
-        }
-    ) 
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="错误发生时间") 
