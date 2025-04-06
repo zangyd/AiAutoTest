@@ -6,6 +6,7 @@
 from datetime import timedelta
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
+from typing import Optional
 
 class JWTSettings(BaseSettings):
     """JWT配置类"""
@@ -13,7 +14,7 @@ class JWTSettings(BaseSettings):
     model_config = ConfigDict(env_prefix="JWT_")
     
     # JWT密钥
-    SECRET_KEY: str = "your-secret-key"
+    SECRET_KEY: str = "test_secret_key"
     
     # JWT算法
     ALGORITHM: str = "HS256"

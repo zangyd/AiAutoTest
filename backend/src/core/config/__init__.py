@@ -6,4 +6,8 @@
 - 数据库配置
 - Redis配置
 - 日志配置
-""" 
+"""
+
+from .settings import settings
+
+__all__ = ["settings"] 
