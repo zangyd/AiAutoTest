@@ -22,7 +22,7 @@ os.environ.setdefault("MONGO_CONNECT_TIMEOUT", "1000")
 os.environ.setdefault("MONGO_SERVER_SELECTION_TIMEOUT", "1000")
 
 # MySQL测试环境变量
-os.environ.setdefault("MYSQL_URL", "mysql://test:test@localhost:3306/test_db")
+os.environ.setdefault("MYSQL_URL", "mysql+pymysql://test:test@localhost:3306/test_db")
 os.environ.setdefault("MYSQL_POOL_SIZE", "5")
 os.environ.setdefault("MYSQL_MAX_OVERFLOW", "10")
 os.environ.setdefault("MYSQL_POOL_TIMEOUT", "30")

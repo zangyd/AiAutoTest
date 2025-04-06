@@ -18,7 +18,7 @@ from ..mysql_manager import MySQLManager
 from ..migration_manager import MySQLMigrationManager
 
 # 测试配置
-TEST_MYSQL_URL = "mysql+pymysql://test:test@localhost:3306/test_db"
+TEST_MYSQL_URL = "mysql+pymysql://test:Autotest%402024@localhost:3306/test_db"
 TEST_MIGRATIONS_DIR = "/tmp/mysql_migrations_test"
 
 @pytest.fixture
@@ -39,6 +39,25 @@ def mysql_manager():
 @pytest.fixture
 def migration_manager(mysql_manager):
     """创建迁移管理器实例"""
+    # 清理环境
+    mysql_manager.execute_query("DROP TABLE IF EXISTS db_version")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test1")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test2")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_execute")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_rollback")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_dry_run")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS 迁移1")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS 迁移2")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS 迁移3")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_version_1")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_version_2")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_version_3")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_applied")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_intermediate_1")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_intermediate_2")
+    mysql_manager.execute_query("DROP TABLE IF EXISTS test_intermediate_3")
+    
     manager = MySQLMigrationManager(mysql_manager, TEST_MIGRATIONS_DIR)
     yield manager
     # 清理测试目录
@@ -120,12 +139,21 @@ def test_get_pending_migrations(migration_manager):
     content["down"] = ["DROP TABLE IF EXISTS test1"]
     with open(migration1, 'w', encoding='utf-8') as f:
         json.dump(content, f)
-    
-    migration_manager.execute_migration(content["version"])
+        
+    # 修改第二个迁移文件
+    with open(migration2, 'r', encoding='utf-8') as f:
+        content2 = json.load(f)
+    content2["up"] = ["CREATE TABLE test2 (id INT PRIMARY KEY)"]
+    content2["down"] = ["DROP TABLE IF EXISTS test2"]
+    with open(migration2, 'w', encoding='utf-8') as f:
+        json.dump(content2, f)
+        
+    # 执行所有迁移
+    migration_manager.execute_migration()
     
     # 再次获取待执行的迁移
     pending = migration_manager.get_pending_migrations()
-    assert len(pending) == 1
+    assert len(pending) == 0  # 所有迁移都已执行，应该没有待执行的迁移
 
 def test_execute_migration(migration_manager):
     """测试执行迁移"""
@@ -188,6 +216,7 @@ def test_migration_history(migration_manager):
     """测试迁移历史"""
     # 创建并执行多个迁移
     descriptions = ["迁移1", "迁移2", "迁移3"]
+    migrations = []
     for desc in descriptions:
         filepath = migration_manager.create_migration(desc)
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -196,6 +225,10 @@ def test_migration_history(migration_manager):
         content["down"] = [f"DROP TABLE IF EXISTS {desc}"]
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(content, f)
+        migrations.append(content)
+        
+    # 按顺序执行迁移
+    for migration in migrations:
         migration_manager.execute_migration()
     
     # 获取迁移历史
@@ -224,6 +257,97 @@ def test_dry_run(migration_manager):
         "SHOW TABLES LIKE 'test_dry_run'"
     )
     assert len(result) == 0
+
+def test_execute_specific_version(migration_manager):
+    """测试执行指定版本的迁移"""
+    # 创建三个迁移文件
+    migrations = []
+    for i in range(3):
+        filepath = migration_manager.create_migration(f"测试迁移{i+1}")
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = json.load(f)
+        content["up"] = [f"CREATE TABLE test_version_{i+1} (id INT PRIMARY KEY)"]
+        content["down"] = [f"DROP TABLE IF EXISTS test_version_{i+1}"]
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(content, f)
+        migrations.append(content)
+    
+    # 执行到第二个版本
+    target_version = migrations[1]["version"]
+    migration_manager.execute_migration(version=target_version)
+    
+    # 验证只有前两个表被创建
+    for i in range(1, 3):
+        result = migration_manager.mysql_manager.execute_query(
+            f"SHOW TABLES LIKE 'test_version_{i}'"
+        )
+        assert len(result) > 0 if i <= 2 else len(result) == 0
+    
+    # 验证当前版本是目标版本
+    assert migration_manager.get_current_version() == target_version
+
+def test_execute_invalid_version(migration_manager):
+    """测试执行无效版本的迁移"""
+    # 创建一个迁移文件
+    filepath = migration_manager.create_migration("测试迁移")
+    
+    # 尝试执行一个不存在的版本
+    invalid_version = "invalid_version_20240101"
+    with pytest.raises(ValueError) as excinfo:
+        migration_manager.execute_migration(version=invalid_version)
+    assert "无效的目标版本" in str(excinfo.value)
+
+def test_execute_already_applied_version(migration_manager):
+    """测试执行已应用版本的迁移"""
+    # 创建并执行一个迁移
+    filepath = migration_manager.create_migration("已应用的迁移")
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = json.load(f)
+    content["up"] = ["CREATE TABLE test_applied (id INT PRIMARY KEY)"]
+    content["down"] = ["DROP TABLE IF EXISTS test_applied"]
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(content, f)
+    
+    # 第一次执行迁移
+    migration_manager.execute_migration()
+    applied_version = migration_manager.get_current_version()
+    
+    # 再次执行同一版本
+    migration_manager.execute_migration(version=applied_version)
+    
+    # 验证版本没有变化
+    assert migration_manager.get_current_version() == applied_version
+
+def test_execute_intermediate_version(migration_manager):
+    """测试在多版本迁移中执行中间版本"""
+    # 创建三个迁移文件
+    migrations = []
+    for i in range(3):
+        filepath = migration_manager.create_migration(f"中间版本测试{i+1}")
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = json.load(f)
+        content["up"] = [f"CREATE TABLE test_intermediate_{i+1} (id INT PRIMARY KEY)"]
+        content["down"] = [f"DROP TABLE IF EXISTS test_intermediate_{i+1}"]
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(content, f)
+        migrations.append(content)
+    
+    # 先执行到最新版本
+    migration_manager.execute_migration()
+    
+    # 回滚到第二个版本
+    target_version = migrations[1]["version"]
+    migration_manager.rollback_migration(target_version)
+    
+    # 验证只有前两个表存在
+    for i in range(1, 4):
+        result = migration_manager.mysql_manager.execute_query(
+            f"SHOW TABLES LIKE 'test_intermediate_{i}'"
+        )
+        assert len(result) > 0 if i <= 2 else len(result) == 0
+    
+    # 验证当前版本是目标版本
+    assert migration_manager.get_current_version() == target_version
 
 if __name__ == "__main__":
     pytest.main(["-v", __file__]) 

@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import SQLAlchemyError
+from urllib.parse import urlparse
 
 class MySQLManager:
     """MySQL数据库管理器类"""
@@ -78,7 +79,7 @@ class MySQLManager:
             SQLAlchemyError: 数据库操作错误
         """
         # 判断是否为SELECT语句
-        is_select = query.upper().strip().startswith("SELECT")
+        is_select = query.upper().strip().startswith(("SELECT", "SHOW"))
         
         with self.engine.connect() as conn:
             result = conn.execute(text(query), params or {})
@@ -133,12 +134,12 @@ class MySQLManager:
             backup_path: 备份文件路径
         """
         # 从URL中解析数据库连接信息
-        parts = self.url.split("/")
-        db_name = parts[-1].split("?")[0]
-        auth = parts[2].split("@")[0]
-        username, password = auth.split(":")
-        host = parts[2].split("@")[1].split(":")[0]
-        port = parts[2].split("@")[1].split(":")[1]
+        parsed = urlparse(self.url)
+        db_name = parsed.path.lstrip('/')
+        username = parsed.username
+        password = parsed.password
+        host = parsed.hostname
+        port = parsed.port or 3306
         
         # 执行mysqldump命令
         cmd = [
@@ -164,12 +165,12 @@ class MySQLManager:
             backup_path: 备份文件路径
         """
         # 从URL中解析数据库连接信息
-        parts = self.url.split("/")
-        db_name = parts[-1].split("?")[0]
-        auth = parts[2].split("@")[0]
-        username, password = auth.split(":")
-        host = parts[2].split("@")[1].split(":")[0]
-        port = parts[2].split("@")[1].split(":")[1]
+        parsed = urlparse(self.url)
+        db_name = parsed.path.lstrip('/')
+        username = parsed.username
+        password = parsed.password
+        host = parsed.hostname
+        port = parsed.port or 3306
         
         # 执行mysql命令
         cmd = [

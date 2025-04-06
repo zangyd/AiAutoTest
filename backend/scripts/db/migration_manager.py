@@ -12,7 +12,7 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from .mysql_manager import MySQLManager
 
@@ -22,6 +22,7 @@ class MySQLMigrationManager:
     """MySQL数据库迁移管理器类"""
     
     VERSION_TABLE = 'db_version'
+    _counter = 0  # 用于确保版本号唯一性的计数器
     
     def __init__(
         self,
@@ -49,7 +50,7 @@ class MySQLMigrationManager:
         create_table_sql = f"""
         CREATE TABLE IF NOT EXISTS {self.VERSION_TABLE} (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            version VARCHAR(14) NOT NULL,
+            version VARCHAR(17) NOT NULL,
             description TEXT,
             applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_applied BOOLEAN DEFAULT TRUE
@@ -80,8 +81,10 @@ class MySQLMigrationManager:
         Returns:
             str: 迁移文件路径
         """
-        # 生成版本号 (使用时间戳)
-        version = datetime.now().strftime('%Y%m%d%H%M%S')
+        # 生成版本号 (使用时间戳+计数器)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')  # 去掉毫秒数
+        MySQLMigrationManager._counter += 1
+        version = f"{timestamp}{MySQLMigrationManager._counter:02d}"  # 使用2位计数器
         
         # 创建迁移文件
         filename = f"{version}_{description.lower().replace(' ', '_')}.json"
@@ -120,10 +123,12 @@ class MySQLMigrationManager:
             with open(filepath, 'r', encoding='utf-8') as f:
                 migration = json.load(f)
                 
+            # 检查版本是否已应用
             if migration['version'] not in applied_versions:
                 pending_migrations.append(migration)
                 
-        return pending_migrations
+        # 按版本号排序
+        return sorted(pending_migrations, key=lambda x: x['version'])
         
     def execute_migration(
         self,
@@ -140,24 +145,49 @@ class MySQLMigrationManager:
             ValueError: 版本号无效
             FileNotFoundError: 迁移文件不存在
         """
-        pending = self.get_pending_migrations()
-        if not pending:
+        # 获取已应用的版本
+        query = f"SELECT version FROM {self.VERSION_TABLE} WHERE is_applied = TRUE"
+        results = self.mysql_manager.execute_query(query)
+        applied_versions = {row['version'] for row in results}
+        
+        # 获取所有迁移文件
+        migrations = []
+        for filename in sorted(os.listdir(self.migrations_dir)):
+            if not filename.endswith('.json'):
+                continue
+                
+            filepath = os.path.join(self.migrations_dir, filename)
+            with open(filepath, 'r', encoding='utf-8') as f:
+                migration = json.load(f)
+                migrations.append(migration)
+                
+        # 按版本号排序
+        migrations.sort(key=lambda x: x['version'])
+        
+        # 如果指定了版本，验证版本是否存在
+        if version:
+            version_exists = False
+            for migration in migrations:
+                if migration['version'] == version:
+                    version_exists = True
+                    break
+            if not version_exists:
+                raise ValueError(f"无效的目标版本: {version}")
+        
+        # 找出需要执行的迁移
+        pending_migrations = []
+        for migration in migrations:
+            if migration['version'] not in applied_versions:
+                if version and migration['version'] > version:
+                    break
+                pending_migrations.append(migration)
+                
+        if not pending_migrations:
             logger.info("没有待执行的迁移")
             return
             
-        if version:
-            # 找到目标版本的位置
-            target_index = -1
-            for i, migration in enumerate(pending):
-                if migration['version'] == version:
-                    target_index = i
-                    break
-            if target_index == -1:
-                raise ValueError(f"无效的目标版本: {version}")
-            pending = pending[:target_index + 1]
-            
         # 执行迁移
-        for migration in pending:
+        for migration in pending_migrations:
             if dry_run:
                 logger.info(f"将要执行迁移 {migration['version']}: {migration['description']}")
                 for sql in migration['up']:
@@ -165,21 +195,21 @@ class MySQLMigrationManager:
                 continue
                 
             try:
-                # 执行迁移SQL
-                self.mysql_manager.execute_transaction(migration['up'])
-                
-                # 记录版本
-                insert_sql = f"""
-                INSERT INTO {self.VERSION_TABLE} (version, description)
-                VALUES (:version, :description)
-                """
-                self.mysql_manager.execute_query(
-                    insert_sql,
-                    {
+                # 检查up字段是否为空
+                if not migration['up']:
+                    logger.warning(f"迁移 {migration['version']} 的up字段为空，跳过执行")
+                else:
+                    # 执行迁移SQL和更新版本记录在同一个事务中
+                    sql_statements = migration['up'] + [f"""
+                        INSERT INTO {self.VERSION_TABLE} (version, description, is_applied)
+                        VALUES (:version, :description, TRUE)
+                        ON DUPLICATE KEY UPDATE is_applied = TRUE, description = :description
+                    """]
+                    params = [{} for _ in migration['up']] + [{
                         'version': migration['version'],
                         'description': migration['description']
-                    }
-                )
+                    }]
+                    self.mysql_manager.execute_transaction(sql_statements, params)
                 
                 logger.info(f"已执行迁移 {migration['version']}: {migration['description']}")
                 
@@ -189,34 +219,47 @@ class MySQLMigrationManager:
                 
     def rollback_migration(
         self,
-        steps: int = 1,
+        steps_or_version: Union[int, str] = 1,
         dry_run: bool = False
     ) -> None:
         """回滚迁移
         
         Args:
-            steps: 回滚的步数
+            steps_or_version: 回滚的步数或目标版本号
             dry_run: 是否仅打印将要执行的SQL而不实际执行
             
         Raises:
-            ValueError: 步数无效
+            ValueError: 步数无效或版本号无效
         """
-        if steps < 1:
-            raise ValueError("回滚步数必须大于0")
+        if isinstance(steps_or_version, int):
+            if steps_or_version < 1:
+                raise ValueError("回滚步数必须大于0")
+            # 获取最近的几次迁移
+            query = f"""
+            SELECT version, description
+            FROM {self.VERSION_TABLE}
+            WHERE is_applied = TRUE
+            ORDER BY id DESC
+            LIMIT :steps
+            """
+            migrations_to_rollback = self.mysql_manager.execute_query(
+                query,
+                {'steps': steps_or_version}
+            )
+        else:
+            # 按版本号回滚
+            target_version = steps_or_version
+            query = f"""
+            SELECT version, description
+            FROM {self.VERSION_TABLE}
+            WHERE is_applied = TRUE AND version > :target_version
+            ORDER BY version DESC
+            """
+            migrations_to_rollback = self.mysql_manager.execute_query(
+                query,
+                {'target_version': target_version}
+            )
             
-        # 获取最近的几次迁移
-        query = f"""
-        SELECT version, description
-        FROM {self.VERSION_TABLE}
-        WHERE is_applied = TRUE
-        ORDER BY id DESC
-        LIMIT :steps
-        """
-        migrations_to_rollback = self.mysql_manager.execute_query(
-            query,
-            {'steps': steps}
-        )
-        
         if not migrations_to_rollback:
             logger.info("没有可回滚的迁移")
             return
@@ -247,19 +290,14 @@ class MySQLMigrationManager:
                 continue
                 
             try:
-                # 执行回滚SQL
-                self.mysql_manager.execute_transaction(migration['down'])
-                
-                # 更新版本记录
-                update_sql = f"""
-                UPDATE {self.VERSION_TABLE}
-                SET is_applied = FALSE
-                WHERE version = :version
-                """
-                self.mysql_manager.execute_query(
-                    update_sql,
-                    {'version': version}
-                )
+                # 执行回滚SQL和更新版本记录在同一个事务中
+                sql_statements = migration['down'] + [f"""
+                    UPDATE {self.VERSION_TABLE}
+                    SET is_applied = FALSE
+                    WHERE version = :version
+                """]
+                params = [{} for _ in migration['down']] + [{'version': version}]
+                self.mysql_manager.execute_transaction(sql_statements, params)
                 
                 logger.info(f"已回滚迁移 {version}: {migration['description']}")
                 

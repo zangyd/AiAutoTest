@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from db.mysql_manager import MySQLManager
 
 # 测试配置
-TEST_MYSQL_URL = "mysql+pymysql://test:Test123%21%40%23@localhost:3306/test_db"
+TEST_MYSQL_URL = "mysql+pymysql://test:Autotest%402024@localhost:3306/test_db"
 TEST_BACKUP_PATH = "/tmp/mysql_backup_test"
 
 @pytest.fixture
