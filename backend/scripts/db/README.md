@@ -200,7 +200,7 @@ python -m backend.scripts.db info --type mongodb collection_name --stats
 # 查看集合索引
 python -m backend.scripts.db info --type mongodb collection_name --indexes
 
-# 导出集合结构
+# 导出集合信息
 python -m backend.scripts.db info --type mongodb collection_name --export schema.json
 ```
 
@@ -475,4 +475,119 @@ except BackupError as e:
 - 监控连接池状态
 - 及时清理无用连接
 - 定期检查性能指标
-- 保持日志记录完整 
+- 保持日志记录完整
+
+### 数据库迁移管理
+
+#### 目录结构
+
+```
+backend/scripts/db/
+├── migrations/           # 迁移文件目录
+│   └── *.json           # 迁移文件（JSON格式）
+├── migration_manager.py  # 迁移管理器
+└── mysql_manager.py     # MySQL管理器
+```
+
+#### 迁移文件格式
+
+迁移文件采用JSON格式，命名规则为：`{version}_{description}.json`
+- version: 版本号，格式为YYYYMMDDHHMMSSnn（年月日时分秒+2位计数器）
+- description: 迁移描述（中文或英文）
+
+文件内容结构：
+```json
+{
+  "version": "20240406120001",        // 迁移版本号
+  "description": "迁移描述",          // 迁移说明
+  "up": [                             // 升级SQL语句数组
+    "SQL语句1",
+    "SQL语句2"
+  ],
+  "down": [                           // 回滚SQL语句数组
+    "SQL语句1",
+    "SQL语句2"
+  ]
+}
+```
+
+#### 迁移命令
+
+1. 创建迁移:
+```bash
+# 创建新的迁移文件
+python -m backend.scripts.db migration create "迁移描述"
+
+# 指定迁移目录创建
+python -m backend.scripts.db migration create "迁移描述" --dir /path/to/migrations
+```
+
+2. 执行迁移:
+```bash
+# 执行所有待处理的迁移
+python -m backend.scripts.db migration up
+
+# 执行到指定版本
+python -m backend.scripts.db migration up --version 20240406120001
+
+# 回滚最近一次迁移
+python -m backend.scripts.db migration down
+
+# 回滚到指定版本
+python -m backend.scripts.db migration down --version 20240406120001
+
+# 重新执行指定版本
+python -m backend.scripts.db migration redo --version 20240406120001
+```
+
+3. 查看迁移状态:
+```bash
+# 查看迁移历史
+python -m backend.scripts.db migration history
+
+# 查看待处理迁移
+python -m backend.scripts.db migration pending
+
+# 查看当前版本
+python -m backend.scripts.db migration current
+
+# 验证迁移文件
+python -m backend.scripts.db migration validate
+```
+
+4. 迁移管理:
+```bash
+# 初始化迁移环境
+python -m backend.scripts.db migration init
+
+# 清理迁移历史
+python -m backend.scripts.db migration clean
+
+# 修复迁移状态
+python -m backend.scripts.db migration repair
+```
+
+#### 最佳实践
+
+1. 版本号管理
+   - 使用时间戳+2位计数器确保唯一性
+   - 按时间顺序执行迁移
+   - 不允许修改已执行的迁移文件
+
+2. SQL编写规范
+   - 使用完整的SQL语句
+   - 处理好依赖关系
+   - 提供回滚操作
+   - 注意SQL兼容性
+
+3. 迁移策略
+   - 小步迭代，避免大规模变更
+   - 保持向后兼容
+   - 先在测试环境验证
+   - 做好备份和恢复预案
+
+4. 安全考虑
+   - 控制迁移文件权限
+   - 敏感数据加密存储
+   - 记录迁移操作日志
+   - 设置迁移超时限制 

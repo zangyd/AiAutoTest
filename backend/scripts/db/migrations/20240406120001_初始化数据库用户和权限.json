@@ -1,0 +1,15 @@
+{
+  "version": "20240406120001",
+  "description": "初始化数据库用户和权限",
+  "up": [
+    "DROP USER IF EXISTS 'test'@'localhost'",
+    "CREATE USER 'test'@'localhost' IDENTIFIED BY 'Autotest@2024'",
+    "CREATE DATABASE IF NOT EXISTS test_db",
+    "GRANT ALL PRIVILEGES ON test_db.* TO 'test'@'localhost'",
+    "FLUSH PRIVILEGES"
+  ],
+  "down": [
+    "DROP USER IF EXISTS 'test'@'localhost'",
+    "DROP DATABASE IF EXISTS test_db"
+  ]
+} 
