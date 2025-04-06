@@ -11,13 +11,9 @@ T = TypeVar('T')
 # 标准化状态枚举
 class StatusEnum(str, Enum):
     """状态枚举"""
-    ACTIVE = "ACTIVE"         # 活动状态
-    INACTIVE = "INACTIVE"     # 非活动状态
-    DELETED = "DELETED"       # 已删除
-    PENDING = "PENDING"       # 待处理
-    PROCESSING = "PROCESSING" # 处理中
-    COMPLETED = "COMPLETED"   # 已完成
-    FAILED = "FAILED"         # 失败
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    DELETED = "deleted"
 
 # 标准化优先级枚举
 class PriorityEnum(str, Enum):
@@ -29,14 +25,12 @@ class PriorityEnum(str, Enum):
     P4 = "P4"  # 最低优先级
 
 class DateTimeModelMixin(BaseModel):
-    """日期时间Mixin"""
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    """时间模型混入类"""
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat()
-        }
+        from_attributes = True
 
 class FilterParams(BaseModel):
     """过滤参数模型"""
@@ -100,12 +94,14 @@ class ErrorModel(BaseModel):
     detail: Optional[Any] = Field(default=None, description="错误详情")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="错误发生时间")
 
-# API路由
+# 创建主路由
 api_router = APIRouter()
 
-# 导入并包含用户路由
-from .v1.users import router as users_router
-api_router.include_router(users_router, prefix="/v1")
+# 导入并注册子路由
+from .v1 import users, auth
+
+api_router.include_router(users.router, prefix="/v1/users", tags=["用户"])
+api_router.include_router(auth.router, prefix="/v1", tags=["认证"])
 
 # 健康检查
 @api_router.get(
