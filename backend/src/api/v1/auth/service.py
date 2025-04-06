@@ -2,13 +2,14 @@
 认证相关的业务逻辑
 """
 import uuid
-from typing import Tuple
 from fastapi import HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 
 from .schemas import CaptchaResponse, TokenResponse
-from ....core.utils.captcha import CaptchaGenerator
-from ....core.cache.captcha import CaptchaCache
-from ....core.auth.dependencies import authenticate_user, refresh_access_token
+from backend.src.core.utils.captcha import CaptchaGenerator
+from backend.src.core.cache.captcha import CaptchaCache
+from backend.src.core.auth.dependencies import authenticate_user, refresh_access_token
+from backend.src.core.auth.service import auth_service
 
 # 初始化验证码生成器和缓存
 captcha_generator = CaptchaGenerator()
@@ -67,17 +68,22 @@ async def verify_login(username: str, password: str, captcha_id: str, captcha_co
         )
     
     try:
-        # 验证用户名和密码
-        _, token = await authenticate_user(
+        # 构造OAuth2表单数据
+        form_data = OAuth2PasswordRequestForm(
             username=username,
             password=password,
-            remember=remember
+            scope=""
         )
+        
+        # 使用核心认证服务进行认证
+        user, token = await auth_service.authenticate_user(form_data, remember)
         return token
+        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误"
+            detail="用户名或密码错误",
+            headers={"WWW-Authenticate": "Bearer"}
         )
 
 async def refresh_token(refresh_token: str) -> TokenResponse:
@@ -98,5 +104,6 @@ async def refresh_token(refresh_token: str) -> TokenResponse:
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="刷新令牌无效或已过期"
+            detail="刷新令牌无效或已过期",
+            headers={"WWW-Authenticate": "Bearer"}
         ) 

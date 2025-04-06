@@ -2,6 +2,7 @@
 认证相关的请求/响应模型
 """
 from pydantic import BaseModel, Field
+from backend.src.core.auth.schemas import TokenResponse, UserOut
 
 class CaptchaResponse(BaseModel):
     """验证码响应模型"""
@@ -16,12 +17,6 @@ class LoginRequest(BaseModel):
     captcha_code: str = Field(..., description="验证码")
     remember: bool = Field(default=False, description="是否记住登录状态")
 
-class TokenResponse(BaseModel):
-    """令牌响应模型"""
-    access_token: str
-    refresh_token: str
-    token_type: str
-
 class RefreshTokenRequest(BaseModel):
     """刷新令牌请求模型"""
-    refresh_token: str 
+    refresh_token: str = Field(..., description="刷新令牌") 
