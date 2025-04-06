@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from .schemas import CaptchaResponse, TokenResponse
 from backend.src.core.utils.captcha import CaptchaGenerator
 from backend.src.core.cache.captcha import CaptchaCache
-from backend.src.core.auth.dependencies import authenticate_user, refresh_access_token
+from backend.src.core.auth.dependencies import refresh_access_token
 from backend.src.core.auth.service import auth_service
 
 # 初始化验证码生成器和缓存
