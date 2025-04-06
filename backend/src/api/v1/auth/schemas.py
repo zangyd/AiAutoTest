@@ -13,6 +13,7 @@ class Response(BaseModel, Generic[T]):
     message: str = Field(..., description="响应消息")
     data: Optional[T] = Field(None, description="响应数据")
 
+
 class PaginationParams(BaseModel):
     """分页查询参数"""
     page: int = Field(default=1, ge=1, description="页码")
