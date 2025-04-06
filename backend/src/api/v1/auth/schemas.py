@@ -12,8 +12,6 @@ class Response(BaseModel, Generic[T]):
     code: int = Field(..., description="响应状态码")
     message: str = Field(..., description="响应消息")
     data: Optional[T] = Field(None, description="响应数据")
-    request_id: Optional[str] = Field(None, description="请求追踪ID")
-    timestamp: Optional[int] = Field(None, description="时间戳")
 
 class PaginationParams(BaseModel):
     """分页查询参数"""

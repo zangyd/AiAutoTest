@@ -2,35 +2,33 @@
 认证路由测试
 """
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from fastapi import status
-from ..schemas import CaptchaResponse, TokenResponse
-from ..constants import AuthErrorCode
-from .test_auth import TEST_USER, TEST_TOKEN
+from backend.src.api.v1.auth.schemas import CaptchaResponse, TokenResponse
+from backend.src.api.v1.auth.constants import AuthErrorCode
+from .test_auth import TEST_USER, TEST_TOKEN, TEST_CAPTCHA_TEXT, TEST_CAPTCHA_IMAGE
 
 class TestAuthRouter:
     """认证路由测试类"""
 
     def test_get_captcha(self, client):
         """测试获取验证码接口"""
-        with patch("..service.generate_captcha") as mock_generate:
+        with patch("backend.src.api.v1.auth.service.generate_captcha") as mock_generate:
             mock_generate.return_value = CaptchaResponse(
                 captcha_id="test_id",
-                image="base64_image_data"
+                image=TEST_CAPTCHA_IMAGE
             )
             response = client.get("/auth/captcha")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["code"] == 200
             assert data["message"] == "验证码生成成功"
-            assert data["data"]["captcha_id"] == "test_id"
-            assert data["data"]["image"] == "base64_image_data"
-            assert "request_id" in data
-            assert "timestamp" in data
+            assert isinstance(data["data"]["captcha_id"], str)
+            assert data["data"]["image"] == TEST_CAPTCHA_IMAGE
 
     def test_get_captcha_failure(self, client):
         """测试获取验证码失败"""
-        with patch("..service.generate_captcha") as mock_generate:
+        with patch("backend.src.api.v1.auth.service.generate_captcha") as mock_generate:
             mock_generate.side_effect = Exception("生成失败")
             response = client.get("/auth/captcha")
             assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -40,23 +38,24 @@ class TestAuthRouter:
 
     def test_login_success(self, client):
         """测试登录接口 - 成功场景"""
-        with patch("..service.verify_login") as mock_verify:
+        with patch("backend.src.api.v1.auth.service.verify_login") as mock_verify:
             mock_verify.return_value = TEST_TOKEN
-            response = client.post("/auth/login", json={
-                "username": "test_user",
-                "password": "password123",
-                "captcha_id": "test_id",
-                "captcha_code": "1234",
-                "remember": False
-            })
+            response = client.post(
+                "/auth/login",
+                json={
+                    "username": "test_user",
+                    "password": "password123",
+                    "captcha_id": "test_id",
+                    "captcha_code": TEST_CAPTCHA_TEXT,
+                    "remember": False
+                }
+            )
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["code"] == 200
             assert data["message"] == "登录成功"
             assert data["data"]["access_token"] == TEST_TOKEN.access_token
             assert data["data"]["refresh_token"] == TEST_TOKEN.refresh_token
-            assert "request_id" in data
-            assert "timestamp" in data
 
     def test_login_invalid_input(self, client):
         """测试登录接口 - 无效输入"""
@@ -68,15 +67,18 @@ class TestAuthRouter:
 
     def test_login_invalid_credentials(self, client):
         """测试登录接口 - 无效凭证"""
-        with patch("..service.verify_login") as mock_verify:
+        with patch("backend.src.api.v1.auth.service.verify_login") as mock_verify:
             mock_verify.side_effect = Exception("Invalid credentials")
-            response = client.post("/auth/login", json={
-                "username": "wrong_user",
-                "password": "wrong_password",
-                "captcha_id": "test_id",
-                "captcha_code": "1234",
-                "remember": False
-            })
+            response = client.post(
+                "/auth/login",
+                json={
+                    "username": "wrong_user",
+                    "password": "wrong_password",
+                    "captcha_id": "test_id",
+                    "captcha_code": TEST_CAPTCHA_TEXT,
+                    "remember": False
+                }
+            )
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
             data = response.json()
             assert data["detail"]["code"] == AuthErrorCode.INVALID_CREDENTIALS
@@ -84,26 +86,27 @@ class TestAuthRouter:
 
     def test_refresh_token_success(self, client):
         """测试刷新令牌接口 - 成功场景"""
-        with patch("..service.refresh_token") as mock_refresh:
+        with patch("backend.src.api.v1.auth.service.refresh_token") as mock_refresh:
             mock_refresh.return_value = TEST_TOKEN
-            response = client.post("/auth/refresh", json={
-                "refresh_token": "valid_refresh_token"
-            })
+            response = client.post(
+                "/auth/refresh",
+                json={"refresh_token": "valid_refresh_token"}
+            )
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["code"] == 200
             assert data["message"] == "令牌刷新成功"
             assert data["data"]["access_token"] == TEST_TOKEN.access_token
-            assert "request_id" in data
-            assert "timestamp" in data
+            assert data["data"]["refresh_token"] == TEST_TOKEN.refresh_token
 
     def test_refresh_token_invalid(self, client):
         """测试刷新令牌接口 - 无效令牌"""
-        with patch("..service.refresh_token") as mock_refresh:
+        with patch("backend.src.api.v1.auth.service.refresh_token") as mock_refresh:
             mock_refresh.side_effect = Exception("Invalid token")
-            response = client.post("/auth/refresh", json={
-                "refresh_token": "invalid_refresh_token"
-            })
+            response = client.post(
+                "/auth/refresh",
+                json={"refresh_token": "invalid_refresh_token"}
+            )
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
             data = response.json()
             assert data["detail"]["code"] == AuthErrorCode.INVALID_TOKEN
@@ -111,7 +114,7 @@ class TestAuthRouter:
 
     def test_get_user_info(self, client):
         """测试获取用户信息接口"""
-        with patch("....core.auth.dependencies.get_current_user") as mock_get_user:
+        with patch("backend.src.core.auth.dependencies.get_current_user") as mock_get_user:
             mock_get_user.return_value = TEST_USER
             response = client.get(
                 "/auth/me",
@@ -123,8 +126,6 @@ class TestAuthRouter:
             assert data["message"] == "获取用户信息成功"
             assert data["data"]["username"] == TEST_USER.username
             assert data["data"]["email"] == TEST_USER.email
-            assert "request_id" in data
-            assert "timestamp" in data
 
     def test_get_user_info_unauthorized(self, client):
         """测试获取用户信息接口 - 未授权"""

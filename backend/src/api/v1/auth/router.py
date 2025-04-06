@@ -1,17 +1,13 @@
 """
 认证相关的路由定义
 """
-import time
-import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from typing import Any
 
-from backend.src.core.auth.service import auth_service
-from backend.src.core.auth.dependencies import get_current_user, refresh_access_token
+from backend.src.core.auth.dependencies import get_current_user
 from backend.src.core.auth.schemas import UserOut, TokenResponse
-from .schemas import CaptchaResponse, Response
-from .service import generate_captcha
+from .schemas import CaptchaResponse, Response, LoginRequest, RefreshTokenRequest
+from .service import generate_captcha, verify_login, refresh_token
 from .constants import AuthErrorCode
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -32,9 +28,7 @@ async def get_captcha() -> Response[CaptchaResponse]:
         return Response(
             code=200,
             message="验证码生成成功",
-            data=result,
-            request_id=str(uuid.uuid4()),
-            timestamp=int(time.time() * 1000)
+            data=result
         )
     except Exception:
         raise HTTPException(
@@ -46,16 +40,12 @@ async def get_captcha() -> Response[CaptchaResponse]:
         )
 
 @router.post("/login", response_model=Response[TokenResponse])
-async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    remember: bool = False
-) -> Response[TokenResponse]:
+async def login(request: LoginRequest) -> Response[TokenResponse]:
     """
     用户登录
     
     Args:
-        form_data: OAuth2表单数据
-        remember: 是否记住登录状态
+        request: 登录请求数据
         
     Returns:
         Response[TokenResponse]: 标准响应格式的令牌信息
@@ -64,14 +54,20 @@ async def login(
         HTTPException: 登录失败时抛出异常
     """
     try:
-        user, token = await auth_service.authenticate_user(form_data, remember)
+        token = await verify_login(
+            username=request.username,
+            password=request.password,
+            captcha_id=request.captcha_id,
+            captcha_code=request.captcha_code,
+            remember=request.remember
+        )
         return Response(
             code=200,
             message="登录成功",
-            data=token,
-            request_id=str(uuid.uuid4()),
-            timestamp=int(time.time() * 1000)
+            data=token
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -82,12 +78,12 @@ async def login(
         )
 
 @router.post("/refresh", response_model=Response[TokenResponse])
-async def refresh(refresh_token: str) -> Response[TokenResponse]:
+async def refresh(request: RefreshTokenRequest) -> Response[TokenResponse]:
     """
     刷新访问令牌
     
     Args:
-        refresh_token: 刷新令牌
+        request: 刷新令牌请求数据
         
     Returns:
         Response[TokenResponse]: 标准响应格式的新令牌信息
@@ -96,13 +92,11 @@ async def refresh(refresh_token: str) -> Response[TokenResponse]:
         HTTPException: 刷新失败时抛出异常
     """
     try:
-        token = await refresh_access_token(refresh_token)
+        token = await refresh_token(request.refresh_token)
         return Response(
             code=200,
             message="令牌刷新成功",
-            data=token,
-            request_id=str(uuid.uuid4()),
-            timestamp=int(time.time() * 1000)
+            data=token
         )
     except Exception:
         raise HTTPException(
@@ -127,7 +121,5 @@ async def get_user_info(current_user: UserOut = Depends(get_current_user)) -> Re
     return Response(
         code=200,
         message="获取用户信息成功",
-        data=current_user,
-        request_id=str(uuid.uuid4()),
-        timestamp=int(time.time() * 1000)
+        data=current_user
     ) 

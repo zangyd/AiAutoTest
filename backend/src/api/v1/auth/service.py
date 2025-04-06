@@ -10,6 +10,7 @@ from backend.src.core.utils.captcha import CaptchaGenerator
 from backend.src.core.cache.captcha import CaptchaCache
 from backend.src.core.auth.dependencies import refresh_access_token
 from backend.src.core.auth.service import auth_service
+from .constants import AuthErrorCode
 
 # 初始化验证码生成器和缓存
 captcha_generator = CaptchaGenerator()
@@ -25,23 +26,37 @@ async def generate_captcha() -> CaptchaResponse:
     Raises:
         HTTPException: 验证码生成失败时抛出异常
     """
-    # 生成验证码ID
-    captcha_id = str(uuid.uuid4())
-    
-    # 生成验证码
-    code, image = captcha_generator.generate()
-    
-    # 保存验证码
-    if not captcha_cache.save_captcha(captcha_id, code):
+    try:
+        # 生成验证码ID
+        captcha_id = str(uuid.uuid4())
+        
+        # 生成验证码
+        code, image = captcha_generator.generate()
+        
+        # 保存验证码
+        if not captcha_cache.save_captcha(captcha_id, code):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "code": AuthErrorCode.GENERATE_CAPTCHA_FAILED,
+                    "message": AuthErrorCode.get_message(AuthErrorCode.GENERATE_CAPTCHA_FAILED)
+                }
+            )
+        
+        return CaptchaResponse(
+            captcha_id=captcha_id,
+            image=image
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="验证码生成失败"
+            detail={
+                "code": AuthErrorCode.GENERATE_CAPTCHA_FAILED,
+                "message": AuthErrorCode.get_message(AuthErrorCode.GENERATE_CAPTCHA_FAILED)
+            }
         )
-    
-    return CaptchaResponse(
-        captcha_id=captcha_id,
-        image=image
-    )
 
 async def verify_login(username: str, password: str, captcha_id: str, captcha_code: str, remember: bool) -> TokenResponse:
     """
@@ -64,25 +79,25 @@ async def verify_login(username: str, password: str, captcha_id: str, captcha_co
     if not captcha_cache.verify_captcha(captcha_id, captcha_code):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="验证码错误或已过期"
+            detail={
+                "code": AuthErrorCode.INVALID_CAPTCHA,
+                "message": AuthErrorCode.get_message(AuthErrorCode.INVALID_CAPTCHA)
+            }
         )
     
     try:
-        # 构造OAuth2表单数据
-        form_data = OAuth2PasswordRequestForm(
-            username=username,
-            password=password,
-            scope=""
-        )
-        
         # 使用核心认证服务进行认证
-        user, token = await auth_service.authenticate_user(form_data, remember)
+        user = await auth_service.authenticate_user(username, password)
+        token = await auth_service.create_access_token(user, remember)
         return token
         
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
+            detail={
+                "code": AuthErrorCode.INVALID_CREDENTIALS,
+                "message": AuthErrorCode.get_message(AuthErrorCode.INVALID_CREDENTIALS)
+            },
             headers={"WWW-Authenticate": "Bearer"}
         )
 
@@ -104,6 +119,9 @@ async def refresh_token(refresh_token: str) -> TokenResponse:
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="刷新令牌无效或已过期",
+            detail={
+                "code": AuthErrorCode.INVALID_TOKEN,
+                "message": AuthErrorCode.get_message(AuthErrorCode.INVALID_TOKEN)
+            },
             headers={"WWW-Authenticate": "Bearer"}
         ) 
