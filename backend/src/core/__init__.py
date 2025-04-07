@@ -6,4 +6,5 @@
 - JWT认证
 - 数据库连接
 - 缓存管理
-""" 
+"""
+from .config import settings 

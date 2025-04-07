@@ -2,13 +2,27 @@
 配置管理模块
 """
 from .base_settings import BaseAppSettings
+from .jwt_config import JWTSettings
+from .database_config import DatabaseSettings
 from pydantic import Field
 from typing import Optional
 
-class Settings(BaseAppSettings):
+class Settings(BaseAppSettings, JWTSettings, DatabaseSettings):
     """
-    应用配置类
+    应用配置设置类
+    
+    集合所有子配置类
     """
+    
+    # 应用名称
+    APP_NAME: str = "Autotest API"
+    
+    # 版本
+    VERSION: str = "0.1.0"
+    
+    # 环境
+    ENVIRONMENT: str = "development"
+    
     # SQLAlchemy配置
     SQLALCHEMY_ECHO: bool = Field(default=False)
     SQLALCHEMY_POOL_SIZE: int = Field(default=5)
@@ -64,4 +78,5 @@ class Settings(BaseAppSettings):
             self.ACCOUNT_LOCKOUT_MINUTES = 30
             self.PASSWORD_MIN_LENGTH = 12
 
+# 创建全局设置实例
 settings = Settings() 

@@ -1,7 +1,3 @@
 """
-认证模块测试用例
+认证模块测试初始化
 """
-from .test_router import *
-from .test_service import *
-
-__all__ = ['TestLoginAPI'] 

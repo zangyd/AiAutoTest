@@ -5,7 +5,7 @@
 """
 from pathlib import Path
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, computed_field
 from typing import Optional
 
 # 获取项目根目录
@@ -48,6 +48,18 @@ class BaseAppSettings(BaseSettings):
     SECRET_KEY: str = Field(default="your-secret-key")
     ALLOWED_HOSTS: list = Field(default=["*"])
     
+    @computed_field
+    @property
+    def DATABASE_URL(self) -> str:
+        """获取数据库URL"""
+        return f"mysql+aiomysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
+    
+    @computed_field
+    @property
+    def TEST_DATABASE_URL(self) -> str:
+        """获取测试数据库URL"""
+        return f"mysql+aiomysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}_test"
+    
     model_config = ConfigDict(
         env_file=[
             str(ROOT_DIR / ".env"),
@@ -69,4 +81,12 @@ class BaseAppSettings(BaseSettings):
         elif self.ENV == "production":
             self.DEBUG = False
             self.LOG_LEVEL = "INFO"
-            self.ALLOWED_HOSTS = ["autotest.example.com"] 
+            self.ALLOWED_HOSTS = ["autotest.example.com"]
+
+    def _configure_for_environment(self) -> None:
+        """
+        根据环境配置应用程序
+        
+        子类可以重写此方法
+        """
+        pass 

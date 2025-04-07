@@ -15,17 +15,35 @@ alwaysApply: true
 
 ```
 backend/src/
-├── core/                   # 核心功能模块
+├── core/                  # 核心功能模块
 │   ├── auth/              # 认证相关核心功能
 │   ├── cache/             # 缓存相关核心功能
-│   └── ...               # 其他核心功能模块
+│   ├── config/            # 配置管理
+│   ├── database/          # 数据库连接管理
+│   ├── logging/           # 日志处理
+│   └── utils/             # 工具函数
 ├── api/                   # API接口层
-│   └── v1/               # API版本1
-│       ├── auth/         # 认证相关API
-│       ├── users/        # 用户相关API
-│       └── ...          # 其他API模块
-└── models/               # 数据模型
-    └── user.py          # 用户模型
+│   ├── v1/                # API版本1
+│   │   ├── auth/          # 认证相关API
+│   │   ├── projects/      # 项目相关API
+│   │   ├── reports/       # 报告相关API
+│   │   └── tests/         # 测试相关API
+│   ├── core/              # API核心组件
+│   ├── models/            # API数据模型
+│   ├── services/          # API服务层
+│   └── config/            # API配置
+├── tests/                 # 独立测试目录
+│   ├── api/               # API测试
+│   │   └── v1/            # API v1版本测试
+│   ├── core/              # 核心模块测试
+│   ├── utils/             # 测试工具函数
+│   ├── conftest.py        # 测试配置
+│   └── run_tests.py       # 测试运行脚本
+├── scripts/               # 辅助脚本
+│   └── db/                # 数据库相关脚本
+├── migrations/            # 数据库迁移
+│   └── versions/          # 迁移版本
+└── main.py                # 应用入口
 ```
 
 ## 2. 模块开发规范
@@ -33,9 +51,16 @@ backend/src/
 ### 2.1 核心模块 (core/)
 - 位置：`backend/src/core/`
 - 用途：实现基础功能，供API层调用
+- 主要组件：
+  - auth: 认证和授权相关功能
+  - cache: 缓存管理功能
+  - config: 配置管理
+  - database: 数据库连接和会话管理
+  - logging: 日志记录功能
+  - utils: 通用工具函数
 - 开发要求：
   ```python
-  # 示例：core/auth/jwt_handler.py
+  # 示例：core/auth/jwt.py
   class JWTHandler:
       """JWT处理器，提供Token的生成和验证功能"""
       @staticmethod
@@ -44,8 +69,14 @@ backend/src/
       async def verify_token(): ...
   ```
 
-### 2.2 API模块 (api/v1/)
-- 位置：`backend/src/api/v1/`
+### 2.2 API模块 (api/)
+- 位置：`backend/src/api/`
+- 主要组件：
+  - v1: API版本1的所有接口
+  - core: API核心组件
+  - models: API数据模型
+  - services: API服务层
+  - config: API特定配置
 - 结构示例：
   ```
   api/v1/module_name/
@@ -53,10 +84,6 @@ backend/src/
   ├── router.py           # 路由定义
   ├── schemas.py          # 数据模型
   ├── dependencies.py     # 依赖项
-  └── tests/             # 测试目录
-      ├── __init__.py    # 测试初始化
-      ├── conftest.py    # 测试配置
-      └── test_*.py      # 测试文件
   ```
 - 开发规范：
   1. 路由文件 (router.py):
@@ -77,12 +104,18 @@ backend/src/
      ```
 
 ### 2.3 测试规范 (tests/)
-- 位置：与被测试模块在同一目录下
+- 位置：`backend/src/tests/`
 - 结构：
   ```
-  module/tests/
-  ├── conftest.py        # 测试配置和fixture
-  └── test_feature.py    # 具体功能测试
+  tests/
+  ├── api/                # API测试
+  │   └── v1/             # API v1版本测试
+  │       └── module_name/# 具体模块测试
+  ├── core/               # 核心模块测试
+  │   └── module_name/    # 具体模块测试
+  ├── utils/              # 测试工具函数
+  ├── conftest.py         # 测试配置和fixture
+  └── run_tests.py        # 测试运行脚本
   ```
 - 测试编写规范：
   ```python
@@ -93,35 +126,43 @@ backend/src/
       async def test_error_case(self): ...
   ```
 
+### 2.4 脚本和迁移 (scripts/ 和 migrations/)
+- 脚本目录 (`backend/src/scripts/`): 用于存放各种辅助脚本
+- 迁移目录 (`backend/src/migrations/`): 用于管理数据库迁移
+- 开发规范：
+  - 脚本应该有明确的功能和文档
+  - 迁移文件应该遵循Alembic的规范
+
 ## 3. 开发流程
 
 ### 3.1 新增功能
 1. 在core层实现基础功能
 2. 在api层创建对应模块目录
 3. 实现router、schemas、dependencies
-4. 创建tests目录并编写测试
+4. 在tests目录下创建对应的测试目录和文件
 
 ### 3.2 测试开发
-1. 在模块的tests目录下创建测试文件
+1. 在tests目录下创建与源码结构对应的测试目录
 2. 编写必要的fixture在conftest.py中
 3. 实现测试类和测试方法
-4. 运行测试确保覆盖所有场景
+4. 使用run_tests.py来运行测试
 
 ## 4. 使用示例
 
 ### 4.1 创建新API模块
 ```bash
 # 1. 创建目录结构
-mkdir -p backend/src/api/v1/new_module/tests
+mkdir -p backend/src/api/v1/new_module
+mkdir -p backend/src/tests/api/v1/new_module
 
 # 2. 创建必要文件
 touch backend/src/api/v1/new_module/{__init__.py,router.py,schemas.py,dependencies.py}
-touch backend/src/api/v1/new_module/tests/{__init__.py,conftest.py,test_feature.py}
+touch backend/src/tests/api/v1/new_module/{__init__.py,test_router.py,conftest.py}
 ```
 
 ### 4.2 编写测试
 ```python
-# backend/src/api/v1/new_module/tests/test_feature.py
+# backend/src/tests/api/v1/new_module/test_router.py
 @pytest.mark.asyncio
 class TestFeature:
     async def test_success(self, client, test_data):
@@ -129,18 +170,28 @@ class TestFeature:
         assert response.status_code == 200
 ```
 
+### 4.3 运行测试
+```bash
+# 运行特定模块的测试
+python backend/src/tests/run_tests.py src/tests/api/v1/new_module
+
+# 运行所有测试
+python backend/src/tests/run_tests.py
+```
+
 ## 5. 注意事项
 
 ### 5.1 目录组织
 - 保持目录结构一致性
-- 测试文件与源文件同目录
 - 遵循模块化原则
+- 测试目录结构应与源码目录结构对应
 
 ### 5.2 测试编写
 - 每个API端点都需要测试
 - 包含成功和失败场景
 - 使用fixture管理测试数据
 - 保持测试独立性
+- 可以使用独立测试脚本解决复杂依赖问题
 
 ### 5.3 代码规范
 - 使用类型注解
@@ -165,6 +216,11 @@ class TestFeature:
 - 在测试中正确mock依赖
 - 保持依赖的可测试性
 
+### 6.4 循环导入问题
+- 合理组织模块结构，避免循环导入
+- 对于难以解决的循环导入，可以使用独立测试脚本进行测试
+- 使用惰性导入（延迟导入）解决复杂依赖关系
+
 ## 7. 最佳实践
 
 1. 模块化设计
@@ -177,15 +233,18 @@ class TestFeature:
    - 再实现功能
    - 持续重构
 
-3. 文档维护
+3. 独立测试策略
+   - 针对复杂模块编写独立测试脚本
+   - 使用模拟对象替代复杂依赖
+   - 提供多种测试方法覆盖不同场景
+
+4. 文档维护
    - 及时更新文档
    - 示例代码
    - 清晰的注释
 
-4. 代码质量
+5. 代码质量
    - 代码审查
    - 持续集成
    - 测试覆盖率
 ```
-
-这个使用指南可以作为开发参考，帮助保持代码结构的一致性和可维护性。后续开发新功能时，都应该遵循这个目录结构和开发规范。

@@ -71,6 +71,8 @@ class UserLogin(BaseModel):
     username: str
     password: str
     remember: Optional[bool] = False
+    captcha: Optional[str] = None
+    captcha_id: Optional[str] = None
 
 class UserOut(BaseModel):
     """
@@ -78,32 +80,41 @@ class UserOut(BaseModel):
     """
     id: int
     username: str
-    email: EmailStr
-    phone: Optional[str]
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
     is_active: bool
     is_superuser: bool
-    created_at: datetime
-    updated_at: datetime
-    last_login: Optional[datetime]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
 
     class Config:
         """配置"""
-        from_attributes = True
+        orm_mode = True
 
 class TokenResponse(BaseModel):
     """
     令牌响应模型
     """
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    refresh_token: str
+    access_token: str = Field(..., description="访问令牌")
+    token_type: str = Field(..., description="令牌类型")
+    expires_in: int = Field(..., description="过期时间（秒）")
+    refresh_token: str = Field(..., description="刷新令牌")
 
 class RefreshToken(BaseModel):
     """
     刷新令牌模型
     """
     refresh_token: str
+
+class RefreshTokenRequest(BaseModel):
+    """刷新令牌请求模型"""
+    refresh_token: str = Field(..., description="刷新令牌")
+
+class LogoutRequest(BaseModel):
+    """登出请求模型"""
+    token: str = Field(..., description="要撤销的访问令牌")
+    refresh_token: Optional[str] = Field(None, description="要撤销的刷新令牌")
 
 class RoleBase(BaseModel):
     """
