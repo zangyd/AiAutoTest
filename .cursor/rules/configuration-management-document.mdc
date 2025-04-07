@@ -1,0 +1,266 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: 配置管理机制设计文档，后端配置规范
+globs: 
+alwaysApply: true
+---
+
+# 配置管理机制设计文档
+
+## 一、整体架构
+
+```mermaid
+graph TD
+    A[BaseAppSettings] --> B[Settings]
+    A --> C[JWTSettings]
+    A --> D[APISettings]
+    
+    subgraph "基础配置层"
+    A --> E[环境配置]
+    A --> F[数据库配置]
+    A --> G[缓存配置]
+    A --> H[日志配置]
+    A --> I[基础安全配置]
+    end
+    
+    subgraph "应用配置层"
+    B --> J[SQLAlchemy]
+    B --> K[认证安全]
+    B --> L[验证码]
+    end
+    
+    subgraph "功能配置层"
+    C --> M[JWT配置]
+    D --> N[API配置]
+    end
+```
+
+## 二、配置分层设计
+
+### 2.1 基础配置层 (BaseAppSettings)
+
+```python
+class BaseAppSettings(BaseSettings):
+    """基础配置类,包含所有通用配置"""
+    
+    # 环境配置
+    ENV: str
+    DEBUG: bool
+    
+    # 数据库配置
+    MYSQL_HOST: str
+    MYSQL_PORT: int
+    
+    # Redis配置
+    REDIS_HOST: str
+    REDIS_PORT: int
+    
+    # MongoDB配置
+    MONGODB_HOST: str
+    MONGODB_PORT: int
+    
+    # 日志配置
+    LOG_LEVEL: str
+    LOG_FORMAT: str
+    
+    # 基础安全配置
+    SECRET_KEY: str
+    ALLOWED_HOSTS: list
+```
+
+### 2.2 应用配置层 (Settings)
+
+```python
+class Settings(BaseAppSettings):
+    """应用配置类,包含应用级别的配置"""
+    
+    # SQLAlchemy配置
+    SQLALCHEMY_ECHO: bool
+    SQLALCHEMY_POOL_SIZE: int
+    
+    # 认证安全配置
+    MAX_LOGIN_ATTEMPTS: int
+    PASSWORD_MIN_LENGTH: int
+    
+    # 验证码配置
+    CAPTCHA_ENABLED: bool
+    CAPTCHA_LENGTH: int
+```
+
+### 2.3 功能配置层
+
+```python
+class JWTSettings(BaseAppSettings):
+    """JWT功能配置类"""
+    
+    SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    
+    model_config = ConfigDict(
+        env_prefix="JWT_"  # 使用前缀区分配置
+    )
+
+class APISettings(BaseAppSettings):
+    """API功能配置类"""
+    
+    APP_NAME: str
+    API_PREFIX: str
+    UPLOAD_DIR: str
+```
+
+## 三、配置加载机制
+
+### 3.1 配置优先级
+
+1. 系统环境变量
+2. `.env` 文件
+3. `.env.test` 文件 (测试环境)
+4. 代码默认值
+
+```python
+model_config = ConfigDict(
+    env_file=[
+        ".env",
+        ".env.test"
+    ],
+    env_file_encoding="utf-8",
+    case_sensitive=True
+)
+```
+
+### 3.2 环境适配机制
+
+```python
+def _configure_for_environment(self) -> None:
+    """根据环境配置特定的设置"""
+    if self.ENV == "test":
+        # 测试环境配置
+        self.DEBUG = True
+        self.MYSQL_DATABASE = "autotest_test"
+    elif self.ENV == "production":
+        # 生产环境配置
+        self.DEBUG = False
+        self.LOG_LEVEL = "INFO"
+```
+
+## 四、使用规范
+
+### 4.1 配置定义规范
+
+1. 使用大写字母命名配置项
+2. 使用 `Field` 定义默认值和约束
+3. 添加类型注解
+4. 添加配置项说明文档
+
+```python
+class ExampleSettings(BaseAppSettings):
+    """示例配置类"""
+    
+    # 使用Field定义配置项
+    MAX_CONNECTIONS: int = Field(
+        default=100,
+        description="最大连接数",
+        gt=0
+    )
+```
+
+### 4.2 配置使用规范
+
+1. 创建全局单例实例
+2. 使用类型提示
+3. 避免直接修改配置值
+
+```python
+# 创建全局实例
+settings = Settings()
+
+# 使用类型提示
+def get_database_url(settings: Settings) -> str:
+    return settings.database_url
+```
+
+## 五、最佳实践
+
+### 5.1 配置分类原则
+
+1. **基础配置**
+   - 环境相关配置
+   - 基础设施配置
+   - 通用安全配置
+
+2. **应用配置**
+   - 框架相关配置
+   - 应用级安全配置
+   - 功能开关配置
+
+3. **功能配置**
+   - 特定功能配置
+   - 独立模块配置
+   - 带前缀的配置
+
+### 5.2 配置管理建议
+
+1. **配置分离**
+   - 将配置按职责分离
+   - 避免配置项重复
+   - 保持配置间独立性
+
+2. **配置继承**
+   - 合理使用继承关系
+   - 避免多重继承
+   - 保持继承层次简单
+
+3. **配置验证**
+   - 使用类型检查
+   - 添加值约束
+   - 实现配置验证方法
+
+### 5.3 环境管理建议
+
+1. **环境文件**
+   ```
+   project/
+   ├── .env          # 默认环境配置
+   ├── .env.test     # 测试环境配置
+   └── .env.example  # 配置文件示例
+   ```
+
+2. **环境变量**
+   - 使用明确的前缀
+   - 避免敏感信息
+   - 记录必要说明
+
+3. **配置更新**
+   - 记录配置变更
+   - 维护配置文档
+   - 及时同步示例
+
+## 六、安全考虑
+
+### 6.1 敏感信息保护
+
+1. 避免在代码中硬编码敏感信息
+2. 使用环境变量传递敏感配置
+3. 实现敏感信息加密机制
+
+### 6.2 配置访问控制
+
+1. 限制配置修改权限
+2. 实现配置访问日志
+3. 添加配置变更审计
+
+## 七、维护建议
+
+1. 定期审查配置项
+2. 及时更新配置文档
+3. 保持配置结构清晰
+4. 删除废弃配置项
+5. 优化配置加载性能
+
+这个文档提供了一个完整的配置管理机制参考，可以根据项目需求进行调整和扩展。通过这种分层的配置管理方式，可以使配置更加清晰、可维护，同时保持足够的灵活性。
+

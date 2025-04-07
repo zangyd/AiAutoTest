@@ -1,9 +1,12 @@
 """
-基础响应模式定义
+基础模型模块
+
+定义基础的请求和响应模型
 """
 from datetime import datetime, timezone
 from typing import Generic, TypeVar, Optional, Any, Dict, List
 from pydantic import BaseModel, Field, validator, ConfigDict
+from pydantic.generics import GenericModel
 
 # 定义泛型类型变量
 T = TypeVar('T')
@@ -26,9 +29,9 @@ class QueryParams(BaseModel):
     search: Optional[str] = None
 
 class PaginationParams(BaseModel):
-    """分页参数模型"""
-    page: int = Field(default=1, ge=1, description="当前页码")
-    size: int = Field(default=10, ge=1, le=100, description="每页大小")
+    """分页参数"""
+    page: int = Field(1, ge=1, description="页码")
+    size: int = Field(10, ge=1, le=100, description="每页数量")
 
     @validator('size')
     def validate_size(cls, v):
@@ -36,19 +39,11 @@ class PaginationParams(BaseModel):
             raise ValueError("每页大小不能超过100")
         return v
 
-class ResponseModel(BaseModel, Generic[T]):
+class ResponseModel(GenericModel, Generic[T]):
     """通用响应模型"""
-    code: int = Field(default=200, description="响应状态码")
-    message: str = Field(default="success", description="响应消息")
-    data: Optional[T] = Field(default=None, description="响应数据")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="响应时间")
-    request_id: Optional[str] = Field(default=None, description="请求追踪ID")
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda dt: dt.isoformat()
-        }
-    )
+    code: int = Field(200, description="状态码")
+    message: str = Field("success", description="响应消息")
+    data: Optional[T] = Field(None, description="响应数据")
 
 class PageModel(BaseModel, Generic[T]):
     """分页响应模型"""
@@ -69,4 +64,12 @@ class ErrorModel(BaseModel):
     code: int = Field(description="错误码")
     message: str = Field(description="错误消息")
     detail: Optional[Any] = Field(default=None, description="错误详情")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="错误发生时间") 
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="错误发生时间")
+
+class PaginatedResponse(ResponseModel, Generic[T]):
+    """分页响应模型"""
+    data: Optional[List[T]] = Field(None, description="分页数据")
+    total: int = Field(0, description="总数量")
+    page: int = Field(1, description="当前页码")
+    size: int = Field(10, description="每页数量")
+    pages: int = Field(0, description="总页数") 

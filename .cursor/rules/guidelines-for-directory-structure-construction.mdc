@@ -3,6 +3,11 @@ description: 目录结构
 globs: 
 alwaysApply: true
 ---
+---
+description: 目录结构建设指南
+globs: 
+alwaysApply: true
+---
 
 ```mermaid
 graph TD
@@ -95,7 +100,7 @@ graph TD
      │   └── core/          # 核心功能
      │       ├── auth/      # 认证相关
      │       └── config/    # 配置管理
-     ├── tests/             # 测试用例
+     ├── tests/             # 测试用例（功能，对其他系统测试）
      ├── scripts/           # 维护脚本
      └── logs/             # 日志文件
      ```

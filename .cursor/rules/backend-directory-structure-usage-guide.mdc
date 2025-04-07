@@ -1,0 +1,191 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: 后端目录结构使用指南，后端目录规范
+globs: 
+alwaysApply: true
+---
+
+# 后端目录结构使用指南
+
+## 1. 总体结构
+
+```
+backend/src/
+├── core/                   # 核心功能模块
+│   ├── auth/              # 认证相关核心功能
+│   ├── cache/             # 缓存相关核心功能
+│   └── ...               # 其他核心功能模块
+├── api/                   # API接口层
+│   └── v1/               # API版本1
+│       ├── auth/         # 认证相关API
+│       ├── users/        # 用户相关API
+│       └── ...          # 其他API模块
+└── models/               # 数据模型
+    └── user.py          # 用户模型
+```
+
+## 2. 模块开发规范
+
+### 2.1 核心模块 (core/)
+- 位置：`backend/src/core/`
+- 用途：实现基础功能，供API层调用
+- 开发要求：
+  ```python
+  # 示例：core/auth/jwt_handler.py
+  class JWTHandler:
+      """JWT处理器，提供Token的生成和验证功能"""
+      @staticmethod
+      async def create_access_token(): ...
+      @staticmethod
+      async def verify_token(): ...
+  ```
+
+### 2.2 API模块 (api/v1/)
+- 位置：`backend/src/api/v1/`
+- 结构示例：
+  ```
+  api/v1/module_name/
+  ├── __init__.py         # 模块初始化
+  ├── router.py           # 路由定义
+  ├── schemas.py          # 数据模型
+  ├── dependencies.py     # 依赖项
+  └── tests/             # 测试目录
+      ├── __init__.py    # 测试初始化
+      ├── conftest.py    # 测试配置
+      └── test_*.py      # 测试文件
+  ```
+- 开发规范：
+  1. 路由文件 (router.py):
+     ```python
+     router = APIRouter()
+     
+     @router.post("/endpoint")
+     async def handler(): ...
+     ```
+  2. 模型文件 (schemas.py):
+     ```python
+     class RequestModel(BaseModel): ...
+     class ResponseModel(BaseModel): ...
+     ```
+  3. 依赖文件 (dependencies.py):
+     ```python
+     async def get_current_user(): ...
+     ```
+
+### 2.3 测试规范 (tests/)
+- 位置：与被测试模块在同一目录下
+- 结构：
+  ```
+  module/tests/
+  ├── conftest.py        # 测试配置和fixture
+  └── test_feature.py    # 具体功能测试
+  ```
+- 测试编写规范：
+  ```python
+  @pytest.mark.asyncio
+  class TestFeature:
+      """功能测试类"""
+      async def test_success_case(self): ...
+      async def test_error_case(self): ...
+  ```
+
+## 3. 开发流程
+
+### 3.1 新增功能
+1. 在core层实现基础功能
+2. 在api层创建对应模块目录
+3. 实现router、schemas、dependencies
+4. 创建tests目录并编写测试
+
+### 3.2 测试开发
+1. 在模块的tests目录下创建测试文件
+2. 编写必要的fixture在conftest.py中
+3. 实现测试类和测试方法
+4. 运行测试确保覆盖所有场景
+
+## 4. 使用示例
+
+### 4.1 创建新API模块
+```bash
+# 1. 创建目录结构
+mkdir -p backend/src/api/v1/new_module/tests
+
+# 2. 创建必要文件
+touch backend/src/api/v1/new_module/{__init__.py,router.py,schemas.py,dependencies.py}
+touch backend/src/api/v1/new_module/tests/{__init__.py,conftest.py,test_feature.py}
+```
+
+### 4.2 编写测试
+```python
+# backend/src/api/v1/new_module/tests/test_feature.py
+@pytest.mark.asyncio
+class TestFeature:
+    async def test_success(self, client, test_data):
+        response = await client.post("/api/v1/endpoint", json=test_data)
+        assert response.status_code == 200
+```
+
+## 5. 注意事项
+
+### 5.1 目录组织
+- 保持目录结构一致性
+- 测试文件与源文件同目录
+- 遵循模块化原则
+
+### 5.2 测试编写
+- 每个API端点都需要测试
+- 包含成功和失败场景
+- 使用fixture管理测试数据
+- 保持测试独立性
+
+### 5.3 代码规范
+- 使用类型注解
+- 编写详细的文档字符串
+- 遵循PEP 8规范
+- 保持代码整洁
+
+## 6. 常见问题
+
+### 6.1 测试数据管理
+- 使用fixture创建和清理测试数据
+- 避免测试间数据互相影响
+- 使用事务回滚保持数据库清洁
+
+### 6.2 异步测试
+- 使用pytest.mark.asyncio标记
+- 正确处理异步资源的清理
+- 注意异步上下文管理
+
+### 6.3 依赖注入
+- 合理使用FastAPI的依赖注入
+- 在测试中正确mock依赖
+- 保持依赖的可测试性
+
+## 7. 最佳实践
+
+1. 模块化设计
+   - 功能独立
+   - 职责单一
+   - 接口清晰
+
+2. 测试驱动开发
+   - 先写测试
+   - 再实现功能
+   - 持续重构
+
+3. 文档维护
+   - 及时更新文档
+   - 示例代码
+   - 清晰的注释
+
+4. 代码质量
+   - 代码审查
+   - 持续集成
+   - 测试覆盖率
+```
+
+这个使用指南可以作为开发参考，帮助保持代码结构的一致性和可维护性。后续开发新功能时，都应该遵循这个目录结构和开发规范。

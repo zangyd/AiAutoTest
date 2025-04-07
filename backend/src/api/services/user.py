@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 
-from backend.src.api.models.user import User, Role, Permission, Department
-from backend.src.core.security import get_password_hash, verify_password
+from api.models.user import Department
+from core.auth.models import User, Role, Permission
+from core.security import get_password_hash, verify_password
 
 class UserService:
     """用户服务类"""
@@ -47,7 +48,7 @@ class UserService:
         user = User(
             username=username,
             email=email,
-            hashed_password=get_password_hash(password),
+            password_hash=get_password_hash(password),
             department_id=department_id
         )
         
@@ -79,7 +80,7 @@ class UserService:
         
         # 更新密码
         if "password" in kwargs:
-            kwargs["hashed_password"] = get_password_hash(kwargs.pop("password"))
+            kwargs["password_hash"] = get_password_hash(kwargs.pop("password"))
         
         # 更新角色
         if "role_ids" in kwargs:
@@ -123,7 +124,7 @@ class UserService:
     
     def verify_password(self, user: User, password: str) -> bool:
         """验证用户密码"""
-        return verify_password(password, user.hashed_password)
+        return verify_password(password, user.password_hash)
     
     def get_user_permissions(self, user: User) -> Set[str]:
         """获取用户权限"""

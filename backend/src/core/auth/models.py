@@ -1,13 +1,11 @@
 """
-用户相关的数据库模型
+认证模块数据库模型
 """
 from datetime import datetime
-from typing import List, Optional
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, BigInteger
 from sqlalchemy.sql import text
 from sqlalchemy.orm import relationship
 from core.database import Base
-from core.auth.models import User, Role, Permission, user_role, role_permission
 
 # 用户-角色关联表
 user_role = Table(
@@ -18,7 +16,8 @@ user_role = Table(
     Column('role_id', BigInteger, ForeignKey('roles.id', ondelete='CASCADE'), nullable=False),
     Column('start_time', DateTime, nullable=True),
     Column('end_time', DateTime, nullable=True),
-    Column('created_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    Column('created_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
+    extend_existing=True
 )
 
 # 角色-权限关联表
@@ -28,12 +27,14 @@ role_permission = Table(
     Column('id', BigInteger, primary_key=True, autoincrement=True),
     Column('role_id', BigInteger, ForeignKey('roles.id', ondelete='CASCADE'), nullable=False),
     Column('permission_id', BigInteger, ForeignKey('permissions.id', ondelete='CASCADE'), nullable=False),
-    Column('created_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    Column('created_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
+    extend_existing=True
 )
 
 class User(Base):
     """用户表"""
     __tablename__ = 'users'
+    __table_args__ = {'extend_existing': True}
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
@@ -61,6 +62,7 @@ class User(Base):
 class Role(Base):
     """角色表"""
     __tablename__ = 'roles'
+    __table_args__ = {'extend_existing': True}
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(50), unique=True, nullable=False)
@@ -78,6 +80,7 @@ class Role(Base):
 class Permission(Base):
     """权限表"""
     __tablename__ = 'permissions'
+    __table_args__ = {'extend_existing': True}
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     code = Column(String(100), unique=True, nullable=False)
@@ -106,4 +109,6 @@ class Department(Base):
     
     # 关系
     parent = relationship('Department', remote_side=[id], backref='children')
-    users = relationship('User', back_populates='department') 
+    users = relationship('User', back_populates='department')
+
+# ... 其他模型 ... 

@@ -3,9 +3,14 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Any
+from fastapi.security import OAuth2PasswordRequestForm
 
-from backend.src.core.auth.dependencies import get_current_user
-from backend.src.core.auth.schemas import UserOut, TokenResponse
+from core.auth.dependencies import get_current_user
+from core.auth.jwt import create_access_token, create_refresh_token
+from core.auth.service import AuthService
+from core.security import verify_password
+from api.services.user import UserService
+from core.auth.schemas import UserOut, TokenResponse
 from .schemas import CaptchaResponse, Response, LoginRequest, RefreshTokenRequest
 from .service import generate_captcha, verify_login, refresh_token
 from .constants import AuthErrorCode

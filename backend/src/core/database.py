@@ -1,216 +1,137 @@
+"""
+数据库连接管理模块
+"""
+import os
 from typing import AsyncGenerator, Generator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import create_engine
 from redis.asyncio import Redis
-import os
 from urllib.parse import quote_plus
 from core.config import settings
 import pymysql
 from pymysql.cursors import DictCursor
 from contextlib import contextmanager
+import redis
 
-# 创建基类
+# 创建数据库基类
 Base = declarative_base()
 
-# 从环境变量获取数据库配置
-DB_USER = os.getenv('MYSQL_USER', 'root')
-DB_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
-DB_HOST = os.getenv('MYSQL_HOST', 'localhost')
-DB_PORT = int(os.getenv('MYSQL_PORT', '3306'))
-DB_NAME = os.getenv('MYSQL_DATABASE', 'autotest')
+def get_database_url(database_name: str = None) -> str:
+    """
+    获取数据库URL
+    """
+    db_name = database_name or settings.MYSQL_DATABASE
+    return (
+        f"mysql+pymysql://{settings.MYSQL_USER}:{quote_plus(settings.MYSQL_PASSWORD)}"
+        f"@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{db_name}"
+    )
 
-# 构建数据库URL
-SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-ASYNC_SQLALCHEMY_DATABASE_URI = f"mysql+aiomysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+def get_async_database_url(database_name: str = None) -> str:
+    """
+    获取异步数据库URL
+    """
+    db_name = database_name or settings.MYSQL_DATABASE
+    return (
+        f"mysql+aiomysql://{settings.MYSQL_USER}:{quote_plus(settings.MYSQL_PASSWORD)}"
+        f"@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{db_name}"
+    )
 
-# SQLAlchemy同步引擎
+# 创建同步数据库引擎
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URI,
-    pool_size=5,
-    max_overflow=10,
-    pool_timeout=30,
-    pool_recycle=1800
+    get_database_url(),
+    pool_pre_ping=True,
+    echo=settings.SQLALCHEMY_ECHO
 )
 
-# SQLAlchemy异步引擎
-async_engine = create_async_engine(
-    ASYNC_SQLALCHEMY_DATABASE_URI,
-    pool_size=5,
-    max_overflow=10,
-    pool_timeout=30,
-    pool_recycle=1800
+# 创建异步数据库引擎
+async_engine = create_engine(
+    get_async_database_url(),
+    pool_pre_ping=True,
+    echo=settings.SQLALCHEMY_ECHO
 )
 
-# 同步会话工厂
-SessionLocal = sessionmaker(
-    engine,
-    autocommit=False,
-    autoflush=False
-)
-
-# 异步会话工厂
-AsyncSessionLocal = sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
-)
-
-# Redis连接
-redis = Redis(
-    host=os.getenv('REDIS_HOST', 'localhost'),
-    port=int(os.getenv('REDIS_PORT', 6379)),
-    db=int(os.getenv('REDIS_DB', 0)),
-    password=os.getenv('REDIS_PASSWORD', ''),
-    decode_responses=True,
-    encoding='utf-8'
-)
+# 创建会话工厂
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=async_engine)
 
 def get_db() -> Generator:
-    """获取数据库会话的依赖函数（同步）"""
+    """
+    获取数据库会话
+    """
     db = SessionLocal()
     try:
         yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
     finally:
         db.close()
 
-async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
-    """获取数据库会话的依赖函数（异步）"""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+async def get_async_db() -> Generator:
+    """
+    获取异步数据库会话
+    """
+    async_db = AsyncSessionLocal()
+    try:
+        yield async_db
+    finally:
+        await async_db.close()
 
-async def get_redis() -> Redis:
-    """获取Redis连接的依赖函数"""
-    return redis 
+# 创建Redis客户端
+redis_client = redis.Redis(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    password=settings.REDIS_PASSWORD,
+    db=settings.REDIS_DB,
+    decode_responses=True
+)
+
+def get_redis() -> redis.Redis:
+    """
+    获取Redis客户端
+    """
+    return redis_client
 
 class DatabaseManager:
-    """数据库管理器"""
+    """
+    数据库管理器
+    """
     
-    def __init__(self):
-        """初始化数据库连接参数"""
-        self.config = {
-            'host': DB_HOST,
-            'user': DB_USER,
-            'password': DB_PASSWORD,
-            'port': DB_PORT,
-            'database': DB_NAME,
-            'charset': 'utf8mb4',
-            'cursorclass': DictCursor,  # 使用字典游标，结果自动转为dict格式
-            'autocommit': True
-        }
+    def __init__(self, db_session=None):
+        """
+        初始化数据库管理器
+        """
+        self.db = db_session or next(get_db())
     
-    @contextmanager
-    def get_connection(self) -> Generator[pymysql.Connection, None, None]:
-        """获取数据库连接（上下文管理器）"""
-        conn = None
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.db.close()
+    
+    def execute(self, sql, params=None):
+        """
+        执行SQL语句
+        """
         try:
-            conn = pymysql.connect(**self.config)
-            yield conn
-        except pymysql.Error as e:
-            if conn:
-                conn.rollback()
+            result = self.db.execute(sql, params or {})
+            self.db.commit()
+            return result
+        except Exception as e:
+            self.db.rollback()
             raise e
-        finally:
-            if conn:
-                conn.close()
     
-    @contextmanager
-    def get_cursor(self) -> Generator[pymysql.cursors.DictCursor, None, None]:
-        """获取数据库游标（上下文管理器）"""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                yield cursor
-                conn.commit()
-            except pymysql.Error as e:
-                conn.rollback()
-                raise e
-            finally:
-                cursor.close()
-    
-    def execute(self, sql: str, params: tuple = None) -> int:
-        """执行SQL语句
-        
-        Args:
-            sql: SQL语句
-            params: SQL参数
-            
-        Returns:
-            影响的行数
+    def fetch_all(self, sql, params=None):
         """
-        with self.get_cursor() as cursor:
-            affected_rows = cursor.execute(sql, params)
-            return affected_rows
-    
-    def execute_many(self, sql: str, params_list: list) -> int:
-        """批量执行SQL语句
-        
-        Args:
-            sql: SQL语句
-            params_list: SQL参数列表
-            
-        Returns:
-            影响的行数
+        获取所有结果
         """
-        with self.get_cursor() as cursor:
-            affected_rows = cursor.executemany(sql, params_list)
-            return affected_rows
+        result = self.execute(sql, params)
+        return result.fetchall()
     
-    def fetch_one(self, sql: str, params: tuple = None) -> dict:
-        """查询单条记录
-        
-        Args:
-            sql: SQL语句
-            params: SQL参数
-            
-        Returns:
-            记录字典
+    def fetch_one(self, sql, params=None):
         """
-        with self.get_cursor() as cursor:
-            cursor.execute(sql, params)
-            return cursor.fetchone()
-    
-    def fetch_all(self, sql: str, params: tuple = None) -> list:
-        """查询多条记录
-        
-        Args:
-            sql: SQL语句
-            params: SQL参数
-            
-        Returns:
-            记录字典列表
+        获取单个结果
         """
-        with self.get_cursor() as cursor:
-            cursor.execute(sql, params)
-            return cursor.fetchall()
-    
-    def fetch_value(self, sql: str, params: tuple = None):
-        """查询单个值
-        
-        Args:
-            sql: SQL语句
-            params: SQL参数
-            
-        Returns:
-            单个值
-        """
-        with self.get_cursor() as cursor:
-            cursor.execute(sql, params)
-            row = cursor.fetchone()
-            return row[0] if row else None
+        result = self.execute(sql, params)
+        return result.fetchone()
 
 # 创建全局数据库管理器实例
 db = DatabaseManager()

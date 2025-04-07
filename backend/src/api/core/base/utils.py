@@ -1,5 +1,7 @@
 """
-基础工具函数
+工具函数模块
+
+提供常用的工具函数
 """
 import hashlib
 import uuid
@@ -7,6 +9,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 import re
 from fastapi import HTTPException, status
+
+import jwt
+from passlib.context import CryptContext
+
+# 密码加密上下文
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def generate_uuid() -> str:
     """生成UUID"""
@@ -16,9 +24,37 @@ def generate_request_id() -> str:
     """生成请求ID"""
     return f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{generate_uuid()[:8]}"
 
+def get_timestamp() -> int:
+    """获取当前时间戳"""
+    return int(datetime.now(timezone.utc).timestamp())
+
 def hash_password(password: str) -> str:
-    """密码哈希"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """密码加密"""
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """验证密码"""
+    return pwd_context.verify(plain_password, hashed_password)
+
+def create_jwt_token(
+    data: Dict[str, Any],
+    secret_key: str,
+    expires_delta: Optional[int] = None
+) -> str:
+    """创建JWT token"""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = get_timestamp() + expires_delta
+        to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, secret_key, algorithm="HS256")
+
+def verify_jwt_token(token: str, secret_key: str) -> Dict[str, Any]:
+    """验证JWT token"""
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+        return payload
+    except jwt.PyJWTError:
+        return None
 
 def validate_email(email: str) -> bool:
     """验证邮箱格式"""

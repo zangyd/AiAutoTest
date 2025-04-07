@@ -1,175 +1,108 @@
 """
-AI相关配置
+AI配置模块
+
+管理所有AI相关的配置项，包括LLM、向量数据库、提示词等
 """
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from core.config.base_settings import BaseAppSettings
+from pydantic import Field
+from typing import List, Optional, Dict
 
-class LLMConfig(BaseModel):
-    """LLM模型配置"""
-    # 模型基础配置
-    model_name: str = Field(
-        default="deepseek-coder",
-        description="模型名称"
-    )
-    model_version: str = Field(
-        default="latest",
-        description="模型版本"
-    )
-    model_path: str = Field(
-        default="models/deepseek-coder",
-        description="模型路径"
+class AISettings(BaseAppSettings):
+    """AI配置类"""
+    
+    # LLM配置
+    LLM_MODEL: str = Field(default="deepseek-coder", description="LLM模型名称")
+    LLM_TEMPERATURE: float = Field(default=0.7, description="生成温度")
+    LLM_MAX_TOKENS: int = Field(default=2048, description="最大token数")
+    LLM_TOP_P: float = Field(default=0.95, description="核采样阈值")
+    LLM_FREQUENCY_PENALTY: float = Field(default=0.0, description="频率惩罚")
+    LLM_PRESENCE_PENALTY: float = Field(default=0.0, description="存在惩罚")
+    LLM_STOP_WORDS: List[str] = Field(default=["<|endoftext|>"], description="停止词")
+    LLM_TIMEOUT: int = Field(default=30, description="请求超时时间")
+    LLM_RETRY_COUNT: int = Field(default=3, description="重试次数")
+    LLM_BATCH_SIZE: int = Field(default=5, description="批处理大小")
+    
+    # 向量数据库配置
+    VECTOR_DB_TYPE: str = Field(default="milvus", description="向量数据库类型")
+    VECTOR_DB_HOST: str = Field(default="localhost", description="向量数据库主机")
+    VECTOR_DB_PORT: int = Field(default=19530, description="向量数据库端口")
+    VECTOR_DB_USER: str = Field(default="root", description="向量数据库用户名")
+    VECTOR_DB_PASSWORD: str = Field(default="", description="向量数据库密码")
+    VECTOR_DB_COLLECTION: str = Field(default="embeddings", description="向量集合名称")
+    VECTOR_DIMENSION: int = Field(default=768, description="向量维度")
+    VECTOR_METRIC_TYPE: str = Field(default="L2", description="向量距离度量类型")
+    VECTOR_INDEX_TYPE: str = Field(default="IVF_FLAT", description="向量索引类型")
+    VECTOR_NLIST: int = Field(default=1024, description="向量索引聚类数")
+    
+    # 提示词配置
+    PROMPT_TEMPLATE_DIR: str = Field(default="prompts", description="提示词模板目录")
+    PROMPT_MAX_LENGTH: int = Field(default=2048, description="提示词最大长度")
+    PROMPT_CACHE_SIZE: int = Field(default=1000, description="提示词缓存大小")
+    PROMPT_VERSION_CONTROL: bool = Field(default=True, description="是否启用版本控制")
+    
+    # AI服务配置
+    AI_SERVICE_TIMEOUT: int = Field(default=60, description="服务超时时间")
+    AI_SERVICE_MAX_RETRIES: int = Field(default=3, description="最大重试次数")
+    AI_SERVICE_CONCURRENT_REQUESTS: int = Field(default=10, description="并发请求数")
+    AI_SERVICE_RATE_LIMIT: int = Field(default=100, description="每分钟请求限制")
+    AI_SERVICE_CACHE_TTL: int = Field(default=3600, description="缓存过期时间")
+    
+    # 知识库配置
+    KNOWLEDGE_BASE_DIR: str = Field(default="knowledge", description="知识库目录")
+    KNOWLEDGE_FILE_TYPES: List[str] = Field(default=[".txt", ".md", ".pdf"], description="支持的文件类型")
+    KNOWLEDGE_CHUNK_SIZE: int = Field(default=1000, description="文本分块大小")
+    KNOWLEDGE_OVERLAP_SIZE: int = Field(default=200, description="分块重叠大小")
+    
+    model_config = ConfigDict(
+        env_prefix="AI_"  # 使用AI_前缀区分配置
     )
     
-    # 推理配置
-    max_tokens: int = Field(
-        default=2048,
-        description="最大token数"
-    )
-    temperature: float = Field(
-        default=0.7,
-        description="温度参数"
-    )
-    top_p: float = Field(
-        default=0.9,
-        description="top-p采样参数"
-    )
+    @property
+    def llm_config(self) -> Dict:
+        """获取LLM配置"""
+        return {
+            "model": self.LLM_MODEL,
+            "temperature": self.LLM_TEMPERATURE,
+            "max_tokens": self.LLM_MAX_TOKENS,
+            "top_p": self.LLM_TOP_P,
+            "frequency_penalty": self.LLM_FREQUENCY_PENALTY,
+            "presence_penalty": self.LLM_PRESENCE_PENALTY,
+            "stop": self.LLM_STOP_WORDS
+        }
     
-    # 批处理配置
-    batch_size: int = Field(
-        default=4,
-        description="批处理大小"
-    )
-    max_batch_tokens: int = Field(
-        default=8192,
-        description="最大批处理token数"
-    )
+    @property
+    def vector_db_config(self) -> Dict:
+        """获取向量数据库配置"""
+        return {
+            "host": self.VECTOR_DB_HOST,
+            "port": self.VECTOR_DB_PORT,
+            "user": self.VECTOR_DB_USER,
+            "password": self.VECTOR_DB_PASSWORD,
+            "collection_name": self.VECTOR_DB_COLLECTION,
+            "dimension": self.VECTOR_DIMENSION,
+            "metric_type": self.VECTOR_METRIC_TYPE,
+            "index_type": self.VECTOR_INDEX_TYPE,
+            "nlist": self.VECTOR_NLIST
+        }
     
-    # 资源配置
-    device: str = Field(
-        default="cuda",
-        description="运行设备"
-    )
-    num_gpus: int = Field(
-        default=1,
-        description="GPU数量"
-    )
-    
-    model_config = ConfigDict(title="LLM模型配置")
+    def _configure_for_environment(self) -> None:
+        """根据环境配置特定的设置"""
+        super()._configure_for_environment()
+        
+        if self.ENV == "test":
+            # 测试环境使用较小的配置
+            self.LLM_MAX_TOKENS = 512
+            self.LLM_BATCH_SIZE = 2
+            self.VECTOR_NLIST = 128
+            self.AI_SERVICE_CONCURRENT_REQUESTS = 2
+            self.AI_SERVICE_RATE_LIMIT = 10
+        elif self.ENV == "production":
+            # 生产环境使用更严格的配置
+            self.LLM_TIMEOUT = 60
+            self.LLM_RETRY_COUNT = 5
+            self.AI_SERVICE_MAX_RETRIES = 5
+            self.KNOWLEDGE_CHUNK_SIZE = 500
+            self.KNOWLEDGE_OVERLAP_SIZE = 100
 
-class VectorDBConfig(BaseModel):
-    """向量数据库配置"""
-    # 数据库配置
-    db_type: str = Field(
-        default="milvus",
-        description="向量数据库类型"
-    )
-    host: str = Field(
-        default="localhost",
-        description="数据库主机"
-    )
-    port: int = Field(
-        default=19530,
-        description="数据库端口"
-    )
-    
-    # 集合配置
-    collection_name: str = Field(
-        default="test_cases",
-        description="集合名称"
-    )
-    dimension: int = Field(
-        default=768,
-        description="向量维度"
-    )
-    index_type: str = Field(
-        default="IVF_FLAT",
-        description="索引类型"
-    )
-    
-    # 查询配置
-    search_params: Dict[str, str] = Field(
-        default={
-            "metric_type": "L2",
-            "params": {"nprobe": 10}
-        },
-        description="查询参数"
-    )
-    
-    model_config = ConfigDict(title="向量数据库配置")
-
-class PromptConfig(BaseModel):
-    """提示词配置"""
-    # 模板配置
-    template_path: str = Field(
-        default="prompts",
-        description="模板路径"
-    )
-    default_language: str = Field(
-        default="zh_CN",
-        description="默认语言"
-    )
-    
-    # 变量配置
-    system_variables: Dict[str, str] = Field(
-        default={
-            "project_name": "AutoTest Platform",
-            "version": "1.0.0"
-        },
-        description="系统变量"
-    )
-    
-    # 优化配置
-    max_history: int = Field(
-        default=5,
-        description="最大历史记录数"
-    )
-    context_window: int = Field(
-        default=2048,
-        description="上下文窗口大小"
-    )
-    
-    model_config = ConfigDict(title="提示词配置")
-
-class AIServiceConfig(BaseModel):
-    """AI服务配置"""
-    # 服务配置
-    service_name: str = Field(
-        default="ai_service",
-        description="服务名称"
-    )
-    host: str = Field(
-        default="localhost",
-        description="服务主机"
-    )
-    port: int = Field(
-        default=8001,
-        description="服务端口"
-    )
-    
-    # 限流配置
-    rate_limit: int = Field(
-        default=100,
-        description="每分钟请求限制"
-    )
-    timeout: int = Field(
-        default=30,
-        description="请求超时时间(秒)"
-    )
-    
-    # 缓存配置
-    cache_enabled: bool = Field(
-        default=True,
-        description="启用缓存"
-    )
-    cache_ttl: int = Field(
-        default=3600,
-        description="缓存过期时间(秒)"
-    )
-    
-    model_config = ConfigDict(title="AI服务配置")
-
-# 导出配置实例
-llm_config = LLMConfig()
-vector_db_config = VectorDBConfig()
-prompt_config = PromptConfig()
-ai_service_config = AIServiceConfig() 
+# 创建全局AI配置实例
+ai_settings = AISettings() 

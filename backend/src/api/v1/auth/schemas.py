@@ -1,17 +1,19 @@
 """
-认证相关的请求/响应模型
+认证相关的请求响应模型
 """
-from typing import Generic, TypeVar, Optional
-from pydantic import BaseModel, Field
-from backend.src.core.auth.schemas import TokenResponse, UserOut
+from typing import TypeVar, Generic, Optional
+from pydantic import BaseModel, Field, constr
 
-T = TypeVar('T')
+from core.auth.schemas import TokenResponse, UserOut
+
+# 定义泛型类型变量
+T = TypeVar("T")
 
 class Response(BaseModel, Generic[T]):
-    """标准响应格式"""
-    code: int = Field(..., description="响应状态码")
-    message: str = Field(..., description="响应消息")
-    data: Optional[T] = Field(None, description="响应数据")
+    """标准响应模型"""
+    code: int = Field(..., description="状态码")
+    message: str = Field(..., description="消息")
+    data: Optional[T] = Field(None, description="数据")
 
 
 class PaginationParams(BaseModel):
@@ -22,15 +24,15 @@ class PaginationParams(BaseModel):
 class CaptchaResponse(BaseModel):
     """验证码响应模型"""
     captcha_id: str = Field(..., description="验证码ID")
-    image: str = Field(..., description="Base64编码的验证码图片")
+    image: str = Field(..., description="验证码图片(base64)")
 
 class LoginRequest(BaseModel):
     """登录请求模型"""
-    username: str = Field(..., min_length=3, max_length=20, description="用户名")
-    password: str = Field(..., min_length=8, max_length=20, description="密码")
+    username: constr(min_length=3, max_length=50) = Field(..., description="用户名")
+    password: constr(min_length=6, max_length=50) = Field(..., description="密码")
     captcha_id: str = Field(..., description="验证码ID")
-    captcha_code: str = Field(..., min_length=4, max_length=4, description="验证码")
-    remember: bool = Field(default=False, description="是否记住登录状态")
+    captcha_code: constr(min_length=4, max_length=4) = Field(..., description="验证码")
+    remember: bool = Field(False, description="记住登录状态")
 
 class RefreshTokenRequest(BaseModel):
     """刷新令牌请求模型"""

@@ -1,5 +1,7 @@
 """
-基础中间件定义
+中间件模块
+
+定义API使用的中间件
 """
 import time
 from typing import Callable, Dict, Optional
@@ -12,6 +14,7 @@ import logging
 import json
 from .utils import generate_request_id
 from .config import settings
+from .exceptions import APIException
 
 # 配置日志
 logging.basicConfig(
@@ -123,6 +126,26 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         return await call_next(request)
 
+class ErrorHandlingMiddleware(BaseHTTPMiddleware):
+    """错误处理中间件"""
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        try:
+            return await call_next(request)
+        except APIException as e:
+            # API异常直接返回
+            return Response(
+                content=str(e.detail),
+                status_code=e.status_code,
+                headers=e.headers
+            )
+        except Exception as e:
+            # 其他异常转换为500错误
+            return Response(
+                content=str(e),
+                status_code=500
+            )
+
 def setup_middleware(app: FastAPI) -> None:
     """配置中间件"""
     # 跨域中间件
@@ -149,3 +172,6 @@ def setup_middleware(app: FastAPI) -> None:
         calls=100,  # 每分钟最大请求数
         period=60   # 时间窗口（秒）
     )
+    
+    # 错误处理中间件
+    app.add_middleware(ErrorHandlingMiddleware)

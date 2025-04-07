@@ -2,90 +2,84 @@
 认证依赖模块
 """
 from typing import Optional, List
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-
-from backend.src.core.database import get_db
-from backend.src.api.services.user import UserService
-from backend.src.core.security import verify_token
+from core.config import settings
+from core.database import get_db
+from core.auth.models import User
+from core.auth.schemas import TokenData
+from api.services.user import UserService
+from core.security import verify_token
 from .schemas import UserOut, TokenResponse
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
-) -> UserOut:
+) -> User:
     """
     获取当前用户
-    
-    Args:
-        token: JWT令牌
-        db: 数据库会话
-        
-    Returns:
-        UserOut: 当前用户信息
-        
-    Raises:
-        HTTPException: 认证失败时抛出异常
     """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="无效的认证凭证",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
     try:
-        # 验证令牌
-        payload = verify_token(token)
-        user_id = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="无效的认证信息",
-                headers={"WWW-Authenticate": "Bearer"}
-            )
-            
-        # 从数据库获取用户
-        user_service = UserService(db)
-        user = user_service.get_user_by_id(int(user_id))
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="用户不存在"
-            )
-            
-        return UserOut(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            is_active=user.is_active,
-            is_superuser=user.is_superuser
+        # 解码JWT令牌
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
         )
-    except HTTPException:
-        raise
-    except Exception as e:
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
+    except JWTError:
+        raise credentials_exception
+    
+    # 从数据库获取用户
+    user = db.query(User).filter(User.username == token_data.username).first()
+    if user is None:
+        raise credentials_exception
+    
+    # 检查用户状态
+    if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-            headers={"WWW-Authenticate": "Bearer"}
+            detail="用户已被禁用"
         )
+    
+    return user
 
 async def get_current_active_user(
-    current_user: UserOut = Depends(get_current_user)
-) -> UserOut:
+    current_user: User = Depends(get_current_user)
+) -> User:
     """
     获取当前活跃用户
-    
-    Args:
-        current_user: 当前用户信息
-        
-    Returns:
-        UserOut: 当前活跃用户信息
-        
-    Raises:
-        HTTPException: 用户未激活时抛出异常
     """
     if not current_user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="用户未激活"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户已被禁用"
+        )
+    return current_user
+
+async def get_current_superuser(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """
+    获取当前超级用户
+    """
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="权限不足"
         )
     return current_user
 

@@ -5,9 +5,9 @@ from typing import Tuple, Optional
 from fastapi import HTTPException, status, Depends
 from sqlalchemy.orm import Session
 
-from backend.src.core.database import get_db
-from backend.src.api.services.user import UserService
-from backend.src.core.security import create_access_token, create_refresh_token
+from core.database import get_db
+from api.services.user import UserService
+from core.security import create_access_token, create_refresh_token
 from .schemas import TokenResponse, UserOut
 
 class AuthService:
