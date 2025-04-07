@@ -17,6 +17,9 @@ from .schemas import TokenResponse, UserOut
 from .jwt import verify_token, revoke_token
 from .models import User
 from .utils import verify_password
+from core.auth.token_blacklist import TokenBlacklist
+from core.auth.captcha import CaptchaManager
+from core.auth.login_log import LoginLogService
 
 class AuthService:
     """认证服务类"""
@@ -24,7 +27,9 @@ class AuthService:
     def __init__(
         self, 
         db: Session = Depends(get_db), 
-        redis: Redis = Depends(get_redis)
+        redis: Redis = Depends(get_redis),
+        token_blacklist: TokenBlacklist = None,
+        captcha_manager: CaptchaManager = None
     ):
         """
         初始化认证服务
@@ -32,54 +37,108 @@ class AuthService:
         Args:
             db: 数据库会话
             redis: Redis客户端
+            token_blacklist: 令牌黑名单服务
+            captcha_manager: 验证码管理器
         """
         self.db = db
         self.redis = redis
         self.user_service = UserService(db)
+        self.token_blacklist = token_blacklist
+        self.captcha_manager = captcha_manager
     
-    async def authenticate_user(self, username: str, password: str) -> User:
+    async def authenticate_user(
+        self, 
+        username: str, 
+        password: str, 
+        captcha_id: Optional[str] = None, 
+        captcha_text: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> User:
         """
-        验证用户凭据
-        
+        验证用户凭据并返回用户对象
+
         Args:
             username: 用户名
             password: 密码
-            
+            captcha_id: 验证码ID（可选）
+            captcha_text: 验证码文本（可选）
+            ip_address: 用户IP地址（可选，用于日志记录）
+            user_agent: 用户代理信息（可选，用于日志记录）
+
         Returns:
-            User: 已验证的用户对象
-            
+            User: 用户对象
+
         Raises:
-            HTTPException: 认证失败时抛出异常
+            InvalidCredentialsException: 如果凭据无效
+            InactiveUserException: 如果用户被禁用
+            CaptchaVerificationFailedException: 如果验证码验证失败
         """
-        # 查询用户
-        user = self.user_service.get_user_by_username(username)
-        if not user:
+        # 验证码校验
+        captcha_verified = False
+        if self.captcha_manager and captcha_id and captcha_text:
+            captcha_verified = await self.captcha_manager.verify_captcha(captcha_id, captcha_text)
+            if not captcha_verified:
+                # 记录登录失败日志
+                await LoginLogService.add_login_log(
+                    db=self.db,
+                    username=username,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    login_status=False,
+                    status_message="验证码验证失败",
+                    captcha_verified=False
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="验证码验证失败"
+                )
+
+        # 查找用户
+        user = self.db.query(User).filter(User.username == username).first()
+        if not user or not verify_password(password, user.password_hash):
+            # 记录登录失败日志
+            await LoginLogService.add_login_log(
+                db=self.db,
+                username=username,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                login_status=False,
+                status_message="用户名或密码错误",
+                captcha_verified=captcha_verified
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户名或密码不正确",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail="用户名或密码错误"
             )
-        
-        # 验证密码
-        if not verify_password(password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户名或密码不正确",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # 检查用户状态
+
         if not user.is_active:
+            # 记录登录失败日志
+            await LoginLogService.add_login_log(
+                db=self.db,
+                user_id=user.id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                login_status=False,
+                status_message="用户已禁用",
+                captcha_verified=captcha_verified
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户已禁用",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail="用户已禁用"
             )
-        
-        # 更新最后登录时间
-        user.last_login = datetime.utcnow()
-        self.db.commit()
-        
+
+        # 记录登录成功日志
+        await LoginLogService.add_login_log(
+            db=self.db,
+            user_id=user.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            login_status=True,
+            status_message="登录成功",
+            captcha_verified=captcha_verified
+        )
+
         return user
     
     async def create_tokens(self, user: User) -> Tuple[str, str]:
@@ -229,6 +288,21 @@ class AuthService:
             )
         
         return user
+
+    async def generate_captcha(self) -> Dict:
+        """
+        生成验证码
+
+        Returns:
+            Dict: 包含验证码信息的字典
+        """
+        if not self.captcha_manager:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="验证码服务未配置"
+            )
+        
+        return await self.captcha_manager.generate_captcha()
 
 # 创建认证服务实例
 auth_service = AuthService() 

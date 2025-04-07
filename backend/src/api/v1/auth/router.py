@@ -1,7 +1,7 @@
 """
 认证相关API接口
 """
-from fastapi import APIRouter, Depends, Body, HTTPException, status, Response
+from fastapi import APIRouter, Depends, Body, HTTPException, status, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from redis.asyncio import Redis
@@ -10,10 +10,14 @@ from typing import Annotated, Optional
 from core.database import get_db
 from core.database.redis import get_redis
 from core.auth.service import AuthService
-from core.auth.schemas import TokenResponse, RefreshToken, UserLogin, UserOut, RefreshTokenRequest, LogoutRequest
+from core.auth.schemas import TokenResponse, RefreshToken, UserLogin, UserOut, RefreshTokenRequest, LogoutRequest, CaptchaResponse
 from core.auth.models import User
 from core.auth.jwt import create_access_token, create_refresh_token, verify_token
 from core.auth.dependencies import get_current_user
+from core.auth.token_blacklist import TokenBlacklist
+from core.auth.captcha import CaptchaManager
+from core.auth.login_log import LoginLogService
+from core.cache.redis_manager import get_redis_client
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -80,34 +84,60 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             headers={"WWW-Authenticate": "Bearer"}
         )
 
-@router.post("/login", response_model=TokenResponse)
-async def login(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    auth_service: Annotated[AuthService, Depends()]
+@router.post("/captcha", response_model=CaptchaResponse)
+async def generate_captcha(
+    request: Request,
+    db: Session = Depends(get_db),
+    redis_client = Depends(get_redis_client)
 ):
     """
-    用户登录
+    生成图形验证码
     
-    Args:
-        form_data: OAuth2表单数据
-        auth_service: 认证服务
-        
-    Returns:
-        TokenResponse: 令牌信息
+    返回验证码ID和图像的Base64编码
     """
-    # 验证用户
-    user = await auth_service.authenticate_user(form_data.username, form_data.password)
+    captcha_manager = CaptchaManager(redis_client)
+    auth_service = AuthService(db=db, redis=redis_client, captcha_manager=captcha_manager)
     
-    # 创建访问令牌和刷新令牌
-    access_token, refresh_token = await auth_service.create_tokens(user)
+    return await auth_service.generate_captcha()
+
+@router.post("/login", response_model=TokenResponse)
+async def login(
+    request: Request,
+    user_login: UserLogin,
+    db: Session = Depends(get_db),
+    redis_client = Depends(get_redis_client)
+):
+    """
+    用户登录接口
+    """
+    # 获取客户端信息用于日志记录
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
     
-    # 构建响应
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="Bearer",
-        expires_in=60 * 30  # 30分钟
+    # 创建认证服务和验证码管理器
+    captcha_manager = CaptchaManager(redis_client)
+    token_blacklist = TokenBlacklist(redis_client)
+    auth_service = AuthService(
+        db=db, 
+        redis=redis_client, 
+        token_blacklist=token_blacklist,
+        captcha_manager=captcha_manager
     )
+    
+    # 验证用户凭据
+    user = await auth_service.authenticate_user(
+        username=user_login.username,
+        password=user_login.password,
+        captcha_id=user_login.captcha_id,
+        captcha_text=user_login.captcha_text,
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
+    
+    # 创建令牌
+    access_token, refresh_token = await auth_service.create_tokens(user.id, user.username)
+    
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(

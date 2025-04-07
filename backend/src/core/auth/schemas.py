@@ -65,14 +65,15 @@ class UserUpdate(BaseModel):
         return v
 
 class UserLogin(BaseModel):
-    """
-    用户登录模型
-    """
+    """用户登录请求模型"""
     username: str
     password: str
-    remember: Optional[bool] = False
-    captcha: Optional[str] = None
     captcha_id: Optional[str] = None
+    captcha_text: Optional[str] = None
+
+    class Config:
+        """配置"""
+        from_attributes = True
 
 class UserOut(BaseModel):
     """
@@ -165,5 +166,11 @@ class UserRoleOut(BaseModel):
     class Config:
         """配置"""
         from_attributes = True
+
+class CaptchaResponse(BaseModel):
+    """验证码响应模型"""
+    captcha_id: str
+    captcha_image: str
+    expire_in: int
 
 # ... 其他模型 ... 

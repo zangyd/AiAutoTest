@@ -1,9 +1,9 @@
 """令牌黑名单测试"""
 import pytest
+from unittest.mock import AsyncMock, patch, MagicMock
 import jwt
 import time
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch
 
 from core.auth.token_blacklist import TokenBlacklist
 from core.config.settings import settings
@@ -13,86 +13,164 @@ pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
 def mock_redis():
-    """模拟Redis客户端"""
-    redis_mock = AsyncMock()
+    """创建一个模拟的Redis客户端"""
+    redis = AsyncMock()
     
-    # 模拟Redis方法
-    redis_mock.get.return_value = None
-    redis_mock.set.return_value = True
-    redis_mock.delete.return_value = True
-    redis_mock.exists.return_value = False
+    # 模拟缓存管理器方法
+    redis.get = AsyncMock(return_value=None)
+    redis.set = AsyncMock(return_value=True)
+    redis.delete = AsyncMock(return_value=True)
+    redis.exists = AsyncMock(return_value=False)
     
-    return redis_mock
+    return redis
 
 @pytest.fixture
 def token_blacklist(mock_redis):
-    """创建令牌黑名单实例"""
-    return TokenBlacklist(mock_redis)
+    """创建一个TokenBlacklist实例用于测试"""
+    return TokenBlacklist(redis=mock_redis)
 
 @pytest.fixture
-def test_token():
-    """创建测试令牌"""
-    payload = {
-        "sub": "1",
-        "username": "testuser",
-        "email": "test@example.com",
-        "exp": datetime.utcnow() + timedelta(minutes=30)
-    }
-    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+def mock_jwt_decode():
+    """模拟jwt.decode函数"""
+    with patch('jwt.decode') as mock:
+        mock.return_value = {
+            'sub': '1',
+            'username': 'testuser',
+            'exp': int(time.time()) + 3600  # 1小时后过期
+        }
+        yield mock
+
+@pytest.fixture
+def mock_jwt_decode_expired():
+    """模拟jwt.decode函数返回已过期的token"""
+    with patch('jwt.decode') as mock:
+        mock.return_value = {
+            'sub': '1',
+            'username': 'testuser',
+            'exp': int(time.time()) - 3600  # 1小时前过期
+        }
+        yield mock
+
+@pytest.fixture
+def mock_cache_manager():
+    """模拟CacheManager"""
+    with patch('core.cache.cache_manager.CacheManager') as mock:
+        instance = MagicMock()
+        
+        # 模拟缓存管理器方法
+        instance.get = AsyncMock(return_value=None)
+        instance.set = AsyncMock(return_value=True)
+        instance.delete = AsyncMock(return_value=True)
+        instance.exists = AsyncMock(return_value=False)
+        
+        mock.return_value = instance
+        yield instance
 
 class TestTokenBlacklist:
     """令牌黑名单测试类"""
     
-    async def test_add_to_blacklist(self, token_blacklist, test_token, mock_redis):
+    @pytest.mark.asyncio
+    async def test_add_to_blacklist(self, token_blacklist, mock_jwt_decode, mock_cache_manager):
         """测试将令牌添加到黑名单"""
-        # 将令牌添加到黑名单
-        result = await token_blacklist.add_to_blacklist(test_token)
+        # 准备测试数据
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ0ZXN0dXNlciJ9.signature"
         
-        # 断言
+        # 设置模拟行为
+        mock_cache_manager.set.return_value = True
+        
+        # 测试添加到黑名单
+        result = await token_blacklist.add_to_blacklist(token)
+        
+        # 断言结果
         assert result is True
-        mock_redis.set.assert_called_once()
+        mock_cache_manager.set.assert_called_once()
     
-    async def test_is_blacklisted(self, token_blacklist, test_token, mock_redis):
-        """测试检查令牌是否在黑名单中"""
-        # 设置模拟返回值
-        mock_redis.exists.return_value = True
+    @pytest.mark.asyncio
+    async def test_add_to_blacklist_expired_token(self, token_blacklist, mock_jwt_decode_expired, mock_cache_manager):
+        """测试将已过期的令牌添加到黑名单"""
+        # 准备测试数据
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ0ZXN0dXNlciJ9.signature"
         
-        # 检查令牌是否在黑名单中
-        result = await token_blacklist.is_blacklisted(test_token)
+        # 设置模拟行为
+        mock_cache_manager.set.return_value = True
         
-        # 断言
+        # 测试添加到黑名单
+        result = await token_blacklist.add_to_blacklist(token)
+        
+        # 断言结果
         assert result is True
-        mock_redis.exists.assert_called_once()
+        mock_cache_manager.set.assert_called_once()
     
-    async def test_is_not_blacklisted(self, token_blacklist, test_token, mock_redis):
-        """测试检查令牌不在黑名单中"""
-        # 设置模拟返回值
-        mock_redis.exists.return_value = False
+    @pytest.mark.asyncio
+    async def test_add_to_blacklist_invalid_token(self, token_blacklist, mock_cache_manager):
+        """测试将无效的令牌添加到黑名单"""
+        # 准备测试数据
+        token = "invalid_token"
         
-        # 检查令牌是否在黑名单中
-        result = await token_blacklist.is_blacklisted(test_token)
+        # 设置模拟行为 - jwt.decode会抛出异常
+        with patch('jwt.decode', side_effect=jwt.InvalidTokenError("Invalid token")):
+            # 测试添加到黑名单
+            result = await token_blacklist.add_to_blacklist(token)
         
-        # 断言
+        # 断言结果
         assert result is False
-        mock_redis.exists.assert_called_once()
+        mock_cache_manager.set.assert_not_called()
     
-    async def test_add_to_blacklist_invalid_token(self, token_blacklist, mock_redis):
-        """测试将无效令牌添加到黑名单"""
-        # 将无效令牌添加到黑名单
-        result = await token_blacklist.add_to_blacklist("invalid_token")
+    @pytest.mark.asyncio
+    async def test_is_blacklisted_true(self, token_blacklist, mock_jwt_decode, mock_cache_manager):
+        """测试检查令牌是否在黑名单中 - 是"""
+        # 准备测试数据
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ0ZXN0dXNlciJ9.signature"
         
-        # 断言
-        assert result is False
-        mock_redis.set.assert_not_called()
+        # 设置模拟行为
+        mock_cache_manager.exists.return_value = True
+        
+        # 测试检查是否在黑名单中
+        result = await token_blacklist.is_blacklisted(token)
+        
+        # 断言结果
+        assert result is True
+        mock_cache_manager.exists.assert_called_once()
     
-    async def test_is_blacklisted_invalid_token(self, token_blacklist, mock_redis):
+    @pytest.mark.asyncio
+    async def test_is_blacklisted_false(self, token_blacklist, mock_jwt_decode, mock_cache_manager):
+        """测试检查令牌是否在黑名单中 - 否"""
+        # 准备测试数据
+        token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJ0ZXN0dXNlciJ9.signature"
+        
+        # 设置模拟行为
+        mock_cache_manager.exists.return_value = False
+        
+        # 测试检查是否在黑名单中
+        result = await token_blacklist.is_blacklisted(token)
+        
+        # 断言结果
+        assert result is False
+        mock_cache_manager.exists.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_is_blacklisted_invalid_token(self, token_blacklist, mock_cache_manager):
         """测试检查无效令牌是否在黑名单中"""
-        # 设置模拟返回值
-        mock_redis.exists.return_value = False
+        # 准备测试数据
+        token = "invalid_token"
         
-        # 检查无效令牌是否在黑名单中
-        result = await token_blacklist.is_blacklisted("invalid_token")
+        # 设置模拟行为 - jwt.decode会抛出异常
+        with patch('jwt.decode', side_effect=jwt.InvalidTokenError("Invalid token")):
+            # 设置额外的模拟行为
+            mock_cache_manager.exists.return_value = False
+            
+            # 测试检查是否在黑名单中
+            result = await token_blacklist.is_blacklisted(token)
         
-        # 断言
+        # 断言结果 - 应该尝试直接使用token作为键
         assert result is False
-        mock_redis.exists.assert_called_once_with("invalid_token") 
+        mock_cache_manager.exists.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_clear_expired(self, token_blacklist):
+        """测试清理过期的黑名单记录"""
+        # 测试清理过期记录
+        result = await token_blacklist.clear_expired()
+        
+        # 断言结果 - 目前这是一个空方法，返回0
+        assert result == 0 

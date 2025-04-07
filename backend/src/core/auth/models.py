@@ -2,8 +2,8 @@
 认证模块数据库模型
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, BigInteger
-from sqlalchemy.sql import text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Table, BigInteger, Text
+from sqlalchemy.sql import text, func
 from sqlalchemy.orm import relationship
 from core.database import Base
 
@@ -58,6 +58,8 @@ class User(Base):
     roles = relationship('Role', secondary=user_role, back_populates='users')
     department_id = Column(BigInteger, ForeignKey('departments.id'))
     department = relationship('Department', back_populates='users')
+    # 关联登录日志
+    login_logs = relationship("LoginLog", back_populates="user")
 
 class Role(Base):
     """角色表"""
@@ -110,5 +112,21 @@ class Department(Base):
     # 关系
     parent = relationship('Department', remote_side=[id], backref='children')
     users = relationship('User', back_populates='department')
+
+class LoginLog(Base):
+    """登录日志模型，记录用户登录行为"""
+    __tablename__ = "login_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    login_time = Column(DateTime(timezone=True), server_default=func.now())
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    login_status = Column(Boolean, default=False)  # 登录是否成功
+    status_message = Column(String(255), nullable=True)  # 状态信息，比如失败原因
+    captcha_verified = Column(Boolean, default=False)  # 是否通过验证码验证
+    
+    # 关联用户
+    user = relationship("User", back_populates="login_logs")
 
 # ... 其他模型 ... 
