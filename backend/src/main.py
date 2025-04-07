@@ -17,12 +17,40 @@ from api import api_router
 from api.core.auth import get_current_user
 from api.core.base.models import UserOut
 from core.config.jwt_config import jwt_settings
+from core.config.settings import settings
 from core.auth.jwt import jwt_handler
 from core.logging import LoggingMiddleware
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def validate_critical_configs():
+    """验证关键配置项，确保生产环境中不使用不安全的默认值"""
+    if settings.ENV == "production":
+        # 检查JWT密钥是否已设置且不是默认值
+        if not settings.JWT_SECRET_KEY or settings.JWT_SECRET_KEY == "请在环境变量或.env文件中设置此值":
+            logger.critical("生产环境必须设置强JWT SECRET KEY")
+            raise RuntimeError("生产环境必须设置强JWT SECRET KEY")
+        
+        # 检查应用密钥是否已设置且不是默认值
+        if not settings.SECRET_KEY or settings.SECRET_KEY == "请在环境变量或.env文件中设置此值":
+            logger.critical("生产环境必须设置强SECRET KEY")
+            raise RuntimeError("生产环境必须设置强SECRET KEY")
+        
+        # 检查数据库密码是否已设置
+        if not settings.MYSQL_PASSWORD:
+            logger.warning("生产环境中数据库密码为空，这可能存在安全风险")
+        
+        # 检查Redis密码是否已设置（如果使用）
+        if settings.REDIS_HOST and settings.REDIS_PORT and not settings.REDIS_PASSWORD:
+            logger.warning("生产环境中Redis未设置密码，这可能存在安全风险")
+        
+        # 检查允许的主机是否限制了
+        if "*" in settings.ALLOWED_HOSTS:
+            logger.warning("生产环境中ALLOWED_HOSTS包含'*'，应该限制为特定域名")
+    
+    logger.info(f"当前运行环境: {settings.ENV}")
 
 def create_app() -> FastAPI:
     """
@@ -31,6 +59,9 @@ def create_app() -> FastAPI:
     Returns:
         FastAPI: 应用实例
     """
+    # 验证关键配置
+    validate_critical_configs()
+    
     app = FastAPI(
         title="测试平台",
         description="自动化测试平台API",

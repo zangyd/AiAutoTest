@@ -22,20 +22,29 @@ class BaseAppSettings(BaseSettings):
     MYSQL_HOST: str = Field(default="localhost")
     MYSQL_PORT: int = Field(default=3306)
     MYSQL_USER: str = Field(default="root")
-    MYSQL_PASSWORD: str = Field(default="")
+    MYSQL_PASSWORD: str = Field(
+        default="",
+        description="MySQL数据库密码，应在环境变量或.env文件中设置"
+    )
     MYSQL_DATABASE: str = Field(default="autotest")
     
     # Redis配置
     REDIS_HOST: str = Field(default="localhost")
     REDIS_PORT: int = Field(default=6379)
-    REDIS_PASSWORD: Optional[str] = Field(default=None)
+    REDIS_PASSWORD: Optional[str] = Field(
+        default=None,
+        description="Redis密码，如需应在环境变量或.env文件中设置"
+    )
     REDIS_DB: int = Field(default=0)
     
     # MongoDB配置
     MONGODB_HOST: str = Field(default="localhost")
     MONGODB_PORT: int = Field(default=27017)
     MONGODB_USER: str = Field(default="admin")
-    MONGODB_PASSWORD: str = Field(default="")
+    MONGODB_PASSWORD: str = Field(
+        default="",
+        description="MongoDB密码，应在环境变量或.env文件中设置"
+    )
     MONGODB_DATABASE: str = Field(default="admin")
     MONGODB_AUTH_SOURCE: str = Field(default="admin")
     
@@ -45,7 +54,10 @@ class BaseAppSettings(BaseSettings):
     LOG_DIR: str = Field(default="logs")
     
     # 安全配置
-    SECRET_KEY: str = Field(default="your-secret-key")
+    SECRET_KEY: str = Field(
+        default="请在环境变量或.env文件中设置此值",
+        description="应用安全密钥，必须设置为强密码"
+    )
     ALLOWED_HOSTS: list = Field(default=["*"])
     
     @computed_field

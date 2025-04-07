@@ -13,7 +13,11 @@ class JWTSettings(BaseSettings):
     """JWT配置类"""
     
     # JWT密钥 - 用于签名令牌
-    JWT_SECRET_KEY: str = Field(default="09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7", env="JWT_SECRET_KEY")
+    JWT_SECRET_KEY: str = Field(
+        default="请在环境变量或.env文件中设置此值",  # 不提供实际可用的默认值
+        env="JWT_SECRET_KEY",
+        description="用于JWT签名的密钥，必须设置为强密码"
+    )
     
     # JWT算法
     JWT_ALGORITHM: str = Field(default="HS256", env="JWT_ALGORITHM")
