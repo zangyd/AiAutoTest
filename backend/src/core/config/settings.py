@@ -1,82 +1,80 @@
 """
-配置管理模块
+系统配置模块
 """
-from .base_settings import BaseAppSettings
-from .jwt_config import JWTSettings
-from .database_config import DatabaseSettings
-from pydantic import Field
-from typing import Optional
+from functools import lru_cache
+from typing import Optional, Dict, Any
+from pydantic import Field, validator
+from .base import BaseAppSettings
 
-class Settings(BaseAppSettings, JWTSettings, DatabaseSettings):
-    """
-    应用配置设置类
+class Settings(BaseAppSettings):
+    """系统配置类"""
     
-    集合所有子配置类
-    """
+    # 基本配置
+    PROJECT_NAME: str = Field(default="AutoTest", description="项目名称")
+    VERSION: str = Field(default="1.0.0", description="项目版本")
+    API_V1_STR: str = Field(default="/api/v1", description="API前缀")
     
-    # 应用名称
-    APP_NAME: str = "Autotest API"
-    
-    # 版本
-    VERSION: str = "0.1.0"
-    
-    # 环境
-    ENVIRONMENT: str = "development"
-    
-    # SQLAlchemy配置
-    SQLALCHEMY_ECHO: bool = Field(default=False)
-    SQLALCHEMY_POOL_SIZE: int = Field(default=5)
-    SQLALCHEMY_POOL_TIMEOUT: int = Field(default=10)
-    SQLALCHEMY_POOL_RECYCLE: int = Field(default=3600)
-    
-    # JWT配置
-    JWT_SECRET_KEY: str = Field(default="your-secret-key")
-    JWT_ALGORITHM: str = Field(default="HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30)
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = Field(default=10080)  # 7天
+    # 数据库连接池配置
+    AUTO_CREATE_TABLES: bool = Field(default=True, description="是否自动创建表")
+    DATABASE_POOL_SIZE: int = Field(default=5, description="数据库连接池大小")
+    DATABASE_MAX_OVERFLOW: int = Field(default=10, description="连接池最大溢出数")
+    DATABASE_POOL_RECYCLE: int = Field(default=3600, description="连接回收时间(秒)")
+    DATABASE_ECHO_SQL: bool = Field(default=False, description="是否打印SQL语句")
     
     # 安全配置
-    MAX_LOGIN_ATTEMPTS: int = Field(default=5)
-    LOGIN_ATTEMPT_TIMEOUT: int = Field(default=300)  # 5分钟
-    PASSWORD_MIN_LENGTH: int = Field(default=8)
-    PASSWORD_MAX_LENGTH: int = Field(default=32)
-    
-    # 日志配置
-    LOG_FILE_MAX_BYTES: int = Field(default=10485760)  # 10MB
-    LOG_FILE_BACKUP_COUNT: int = Field(default=5)
-    
-    # 认证安全配置
-    ACCOUNT_LOCKOUT_MINUTES: int = Field(default=30)
-    PASSWORD_REQUIRE_SPECIAL: bool = Field(default=True)
-    PASSWORD_REQUIRE_NUMBER: bool = Field(default=True)
-    PASSWORD_REQUIRE_UPPERCASE: bool = Field(default=True)
-    PASSWORD_REQUIRE_LOWERCASE: bool = Field(default=True)
+    MAX_LOGIN_ATTEMPTS: int = Field(default=5, description="最大登录尝试次数")
+    ACCOUNT_LOCKOUT_MINUTES: int = Field(default=30, description="账户锁定时间(分钟)")
+    PASSWORD_MIN_LENGTH: int = Field(default=8, description="密码最小长度")
+    PASSWORD_REQUIRE_SPECIAL: bool = Field(default=True, description="密码是否需要特殊字符")
+    PASSWORD_REQUIRE_NUMBER: bool = Field(default=True, description="密码是否需要数字")
+    PASSWORD_REQUIRE_UPPERCASE: bool = Field(default=True, description="密码是否需要大写字母")
+    PASSWORD_REQUIRE_LOWERCASE: bool = Field(default=True, description="密码是否需要小写字母")
     
     # 验证码配置
-    CAPTCHA_ENABLED: bool = Field(default=True)
-    CAPTCHA_LENGTH: int = Field(default=6)
-    CAPTCHA_EXPIRE_MINUTES: int = Field(default=5)
+    CAPTCHA_ENABLED: bool = Field(default=True, description="是否启用验证码")
+    CAPTCHA_LENGTH: int = Field(default=6, description="验证码长度")
+    CAPTCHA_EXPIRE_MINUTES: int = Field(default=5, description="验证码过期时间(分钟)")
+    CAPTCHA_EXPIRE_SECONDS: int = Field(default=300, description="验证码过期时间(秒)")
+    
+    @validator("LOG_LEVEL")
+    def validate_log_level(cls, v: str) -> str:
+        """验证日志级别"""
+        allowed_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if v.upper() not in allowed_levels:
+            raise ValueError(f"日志级别必须是以下之一: {', '.join(allowed_levels)}")
+        return v.upper()
+    
+    @property
+    def DATABASE_URL(self) -> str:
+        """获取数据库URL"""
+        return (
+            f"mysql+pymysql://{self.MYSQL_USER}:{self.MYSQL_PASSWORD}@"
+            f"{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DATABASE}"
+        )
+    
+    @property
+    def MONGODB_URL(self) -> str:
+        """获取MongoDB URL"""
+        return (
+            f"mongodb://{self.MONGODB_USER}:{self.MONGODB_PASSWORD}@"
+            f"{self.MONGODB_HOST}:{self.MONGODB_PORT}/{self.MONGODB_DATABASE}"
+            f"?authSource={self.MONGODB_AUTH_SOURCE}"
+        )
+    
+    def dict(self, *args, **kwargs) -> Dict[str, Any]:
+        """重写dict方法，移除敏感信息"""
+        d = super().dict(*args, **kwargs)
+        # 移除敏感信息
+        sensitive_keys = {
+            "MYSQL_PASSWORD", "MONGODB_PASSWORD", "REDIS_PASSWORD",
+            "JWT_SECRET_KEY"
+        }
+        return {k: "******" if k in sensitive_keys else v for k, v in d.items()}
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._configure_for_environment()
+@lru_cache
+def get_settings() -> Settings:
+    """获取配置单例"""
+    return Settings()
 
-    def _configure_for_environment(self) -> None:
-        """根据环境配置特定的设置"""
-        super()._configure_for_environment()
-        
-        if self.ENV == "test":
-            # 测试环境特定配置
-            self.ACCESS_TOKEN_EXPIRE_MINUTES = 5
-            self.REFRESH_TOKEN_EXPIRE_MINUTES = 1
-            self.ACCOUNT_LOCKOUT_MINUTES = 5
-            self.CAPTCHA_ENABLED = False
-        elif self.ENV == "production":
-            # 生产环境特定配置
-            self.CAPTCHA_ENABLED = True
-            self.MAX_LOGIN_ATTEMPTS = 3
-            self.ACCOUNT_LOCKOUT_MINUTES = 30
-            self.PASSWORD_MIN_LENGTH = 12
-
-# 创建全局设置实例
-settings = Settings() 
+# 创建配置单例
+settings = get_settings() 

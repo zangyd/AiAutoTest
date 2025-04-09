@@ -6,12 +6,20 @@ from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field, validator
 import re
 
+class Token(BaseModel):
+    """访问令牌模型"""
+    access_token: str
+    token_type: str = "bearer"
+
 class TokenData(BaseModel):
-    """
-    令牌数据模型
-    """
+    """令牌数据模型"""
+    username: Optional[str] = None
+
+class LoginForm(BaseModel):
+    """登录表单模型"""
     username: str
-    exp: Optional[datetime] = None
+    password: str
+    captcha: Optional[str] = None
 
 class UserBase(BaseModel):
     """
@@ -91,16 +99,14 @@ class UserOut(BaseModel):
 
     class Config:
         """配置"""
-        orm_mode = True
+        from_attributes = True
 
 class TokenResponse(BaseModel):
-    """
-    令牌响应模型
-    """
-    access_token: str = Field(..., description="访问令牌")
-    token_type: str = Field(..., description="令牌类型")
-    expires_in: int = Field(..., description="过期时间（秒）")
-    refresh_token: str = Field(..., description="刷新令牌")
+    """令牌响应模型"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
 
 class RefreshToken(BaseModel):
     """

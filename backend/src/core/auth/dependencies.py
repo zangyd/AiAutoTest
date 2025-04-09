@@ -11,10 +11,11 @@ from core.config import settings
 from core.database import get_db
 from core.database.redis import get_redis
 from core.auth.models import User
-from core.auth.schemas import TokenData
-from api.services.user import UserService
+from core.auth.schemas import TokenData, UserOut, TokenResponse
 from core.auth.jwt import verify_token
-from .schemas import UserOut, TokenResponse
+
+# 避免循环导入
+# from api.services.user import UserService
 
 # 创建OAuth2密码承载器
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -53,9 +54,8 @@ async def get_current_user(
         if not user_id:
             raise credentials_exception
         
-        # 查询用户
-        user_service = UserService(db)
-        user = user_service.get_user_by_id(int(user_id))
+        # 查询用户 - 直接从数据库查询，避免使用UserService
+        user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
             raise credentials_exception
         
@@ -138,10 +138,18 @@ async def check_permissions(
     if current_user.is_superuser:
         return True
         
-    # 获取用户权限
-    user_service = UserService(db)
-    user = user_service.get_user_by_id(current_user.id)
-    user_permissions = user_service.get_user_permissions(user)
+    # 获取用户权限 - 直接从数据库查询，避免使用UserService
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+    
+    # 从用户角色中获取权限
+    user_permissions = []
+    for role in user.roles:
+        user_permissions.extend(role.permissions)
     
     # 检查是否具有所需权限
     if not all(perm in user_permissions for perm in required_permissions):
@@ -151,12 +159,16 @@ async def check_permissions(
         )
     return True
 
-async def refresh_access_token(refresh_token: str) -> TokenResponse:
+async def refresh_access_token(
+    refresh_token: str,
+    redis: Annotated[Redis, Depends(get_redis)]
+) -> TokenResponse:
     """
     刷新访问令牌
     
     Args:
         refresh_token: 刷新令牌
+        redis: Redis客户端
         
     Returns:
         TokenResponse: 新的令牌信息
@@ -165,7 +177,7 @@ async def refresh_access_token(refresh_token: str) -> TokenResponse:
         HTTPException: 刷新令牌无效时抛出异常
     """
     try:
-        payload = verify_token(refresh_token)
+        payload = await verify_token(refresh_token, redis)
         if payload.get("type") != "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -184,20 +196,18 @@ async def refresh_access_token(refresh_token: str) -> TokenResponse:
         from .jwt import create_access_token, create_refresh_token
         
         # 创建新的令牌
-        new_access_token = create_access_token({"sub": user_id})
-        new_refresh_token = create_refresh_token({"sub": user_id})
+        new_access_token = await create_access_token({"sub": user_id})
+        new_refresh_token = await create_refresh_token({"sub": user_id})
         
         return TokenResponse(
             access_token=new_access_token,
             token_type="bearer",
-            expires_in=3600,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             refresh_token=new_refresh_token
         )
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
+            detail=f"刷新令牌失败: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"}
         ) 

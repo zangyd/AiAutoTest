@@ -7,7 +7,7 @@ from typing import List, Optional, Set
 from functools import wraps
 
 from fastapi import HTTPException, status
-from ...api.models import UserOut, PermissionEnum
+from api.core.base.models import UserBase as UserOut, PermissionEnum
 
 class PermissionService:
     """权限验证服务类"""

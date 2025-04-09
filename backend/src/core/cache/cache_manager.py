@@ -15,32 +15,51 @@ import json
 import asyncio
 from redis.asyncio import Redis
 from redis.exceptions import LockError, ConnectionError
+from core.cache.redis_manager import (
+    redis_get,
+    redis_set,
+    redis_delete,
+    redis_exists,
+    redis_get_json,
+    redis_set_json,
+    redis_incr,
+    redis_expire,
+    redis_ttl
+)
+import logging
+import threading
+from redis import Redis
+from redis.exceptions import RedisError
+from .redis_manager import redis_manager
+
+logger = logging.getLogger(__name__)
 
 class CacheManager:
     """Redis缓存管理器"""
     
     def __init__(
         self,
-        redis: Redis,
+        redis_client: Redis,
         key_prefix: str = "",
-        default_expire: int = 3600,
-        json_encoder: Optional[json.JSONEncoder] = None,
-        json_decoder: Optional[json.JSONDecoder] = None,
-    ) -> None:
+        default_expire: int = 300,
+        json_encoder = None,
+        json_decoder = None
+    ):
         """初始化缓存管理器
         
         Args:
-            redis: Redis客户端实例
+            redis_client: Redis客户端实例
             key_prefix: 键前缀
             default_expire: 默认过期时间(秒)
             json_encoder: JSON编码器
             json_decoder: JSON解码器
         """
-        self.redis = redis
+        self.redis = redis_client
         self.key_prefix = key_prefix
         self.default_expire = default_expire
         self.json_encoder = json_encoder
         self.json_decoder = json_decoder
+        self.lock = threading.Lock()
         
     def _build_key(self, key: str) -> str:
         """构建缓存键
@@ -51,10 +70,199 @@ class CacheManager:
         Returns:
             str: 添加前缀后的键名
         """
-        return f"{self.key_prefix}{key}" if self.key_prefix else key
+        return f"{self.key_prefix}:{key}" if self.key_prefix else key
         
+    def _serialize(self, value: Any) -> str:
+        """序列化值
+        
+        Args:
+            value: 要序列化的值
+            
+        Returns:
+            str: 序列化后的字符串
+        """
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (int, float, bool)):
+            return str(value)
+        return json.dumps(value, cls=self.json_encoder)
+        
+    def _deserialize(self, value: Optional[Union[bytes, str]]) -> Any:
+        """反序列化值
+        
+        Args:
+            value: 要反序列化的字节串或字符串
+            
+        Returns:
+            Any: 反序列化后的值
+        """
+        if value is None:
+            return None
+            
+        # 如果已经是字符串，直接返回
+        if isinstance(value, str):
+            return value
+            
+        # 如果是字节，尝试解码
+        if isinstance(value, bytes):
+            try:
+                return value.decode('utf-8')
+            except UnicodeDecodeError:
+                return value
+                
+        # 其他类型，尝试转换为字符串
+        return str(value)
+        
+    def get_sync(self, key: str, default: Any = None) -> Any:
+        """同步获取缓存值
+        
+        Args:
+            key: 缓存键
+            default: 默认值
+            
+        Returns:
+            Any: 缓存值或默认值
+        """
+        with self.lock:
+            try:
+                full_key = self._build_key(key)
+                logger.info(f"正在获取缓存 - 原始键:{key}, 完整键:{full_key}")
+                
+                # 检查键是否存在
+                exists = self.redis.exists(full_key)
+                logger.info(f"键是否存在: {exists}")
+                
+                # 获取TTL
+                ttl = self.redis.ttl(full_key)
+                logger.info(f"键的TTL: {ttl}秒")
+                
+                value = redis_manager.execute_with_retry(
+                    self.redis.get,
+                    full_key
+                )
+                
+                if value is None:
+                    logger.warning(f"缓存未命中 - 键:{full_key}")
+                    return default
+                    
+                deserialized = self._deserialize(value)
+                logger.info(f"缓存命中 - 键:{full_key}, 原始值类型:{type(value)}, 反序列化后类型:{type(deserialized)}")
+                return deserialized
+                
+            except RedisError as e:
+                logger.error(f"获取缓存失败 - 键:{key}, 错误:{str(e)}", exc_info=True)
+                return default
+                
+    def set_sync(
+        self,
+        key: str,
+        value: Any,
+        expire_seconds: Optional[int] = None
+    ) -> bool:
+        """同步设置缓存值
+        
+        Args:
+            key: 缓存键
+            value: 要缓存的值
+            expire_seconds: 过期时间(秒)
+            
+        Returns:
+            bool: 操作是否成功
+        """
+        with self.lock:
+            try:
+                full_key = self._build_key(key)
+                serialized = self._serialize(value)
+                expire = expire_seconds if expire_seconds is not None else self.default_expire
+                
+                logger.info(f"正在设置缓存 - 键:{full_key}, 值:{value}, 序列化后:{serialized}, 过期时间:{expire}秒")
+                
+                def set_with_expire():
+                    with self.redis.pipeline() as pipe:
+                        pipe.setex(
+                            full_key,
+                            expire,
+                            serialized
+                        )
+                        result = pipe.execute()
+                        logger.info(f"缓存设置结果: {result}")
+                        return True
+                    
+                success = redis_manager.execute_with_retry(set_with_expire)
+                if success:
+                    logger.info(f"缓存设置成功 - 键:{full_key}")
+                else:
+                    logger.error(f"缓存设置失败 - 键:{full_key}")
+                return success
+                
+            except RedisError as e:
+                logger.error(f"设置缓存失败 - 键:{key}, 错误:{str(e)}", exc_info=True)
+                return False
+                
+    def delete_sync(self, key: str) -> bool:
+        """同步删除缓存
+        
+        Args:
+            key: 缓存键
+            
+        Returns:
+            bool: 操作是否成功
+        """
+        with self.lock:
+            try:
+                full_key = self._build_key(key)
+                return bool(redis_manager.execute_with_retry(
+                    self.redis.delete,
+                    full_key
+                ))
+            except RedisError as e:
+                logger.error(f"删除缓存失败 - 键:{key}, 错误:{str(e)}")
+                return False
+                
+    def exists_sync(self, key: str) -> bool:
+        """同步检查缓存是否存在
+        
+        Args:
+            key: 缓存键
+            
+        Returns:
+            bool: 是否存在
+        """
+        with self.lock:
+            try:
+                full_key = self._build_key(key)
+                return bool(redis_manager.execute_with_retry(
+                    self.redis.exists,
+                    full_key
+                ))
+            except RedisError as e:
+                logger.error(f"检查缓存是否存在失败 - 键:{key}, 错误:{str(e)}")
+                return False
+                
+    def expire_sync(self, key: str, seconds: int) -> bool:
+        """同步设置过期时间
+        
+        Args:
+            key: 缓存键
+            seconds: 过期时间(秒)
+            
+        Returns:
+            bool: 操作是否成功
+        """
+        with self.lock:
+            try:
+                full_key = self._build_key(key)
+                return bool(redis_manager.execute_with_retry(
+                    self.redis.expire,
+                    full_key,
+                    seconds
+                ))
+            except RedisError as e:
+                logger.error(f"设置过期时间失败 - 键:{key}, 错误:{str(e)}")
+                return False
+            
     async def get(self, key: str, default: Any = None) -> Any:
-        """获取缓存值
+        """异步获取缓存值
         
         Args:
             key: 缓存键
@@ -79,7 +287,7 @@ class CacheManager:
         nx: bool = False,
         xx: bool = False
     ) -> bool:
-        """设置缓存值
+        """异步设置缓存值
         
         Args:
             key: 缓存键
@@ -110,7 +318,7 @@ class CacheManager:
             return False
             
     async def delete(self, key: str) -> bool:
-        """删除缓存
+        """异步删除缓存
         
         Args:
             key: 缓存键
@@ -124,7 +332,7 @@ class CacheManager:
             return False
             
     async def exists(self, key: str) -> bool:
-        """检查缓存是否存在
+        """异步检查缓存是否存在
         
         Args:
             key: 缓存键
@@ -142,7 +350,7 @@ class CacheManager:
         key: str,
         expire: Union[int, timedelta]
     ) -> bool:
-        """设置过期时间
+        """异步设置过期时间
         
         Args:
             key: 缓存键
@@ -159,7 +367,7 @@ class CacheManager:
             return False
             
     async def ttl(self, key: str) -> int:
-        """获取剩余过期时间
+        """异步获取剩余过期时间
         
         Args:
             key: 缓存键
@@ -173,7 +381,7 @@ class CacheManager:
             return -2
             
     async def incr(self, key: str, amount: int = 1) -> Optional[int]:
-        """增加计数器值
+        """异步增加计数器值
         
         Args:
             key: 缓存键
@@ -188,7 +396,7 @@ class CacheManager:
             return None
             
     async def decr(self, key: str, amount: int = 1) -> Optional[int]:
-        """减少计数器值
+        """异步减少计数器值
         
         Args:
             key: 缓存键

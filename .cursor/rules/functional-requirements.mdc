@@ -1,7 +1,7 @@
 ---
 description: 功能需求文档
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 ---
 description: 功能需求文档

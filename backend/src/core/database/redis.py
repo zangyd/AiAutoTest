@@ -1,29 +1,33 @@
 """Redis数据库连接模块"""
-from typing import AsyncGenerator
-import redis.asyncio as redis
-from fastapi import Depends
+import redis
+from core.config.settings import settings
+import logging
 
-from core.config import settings
+logger = logging.getLogger(__name__)
 
+_redis_client = None
 
-async def get_redis() -> AsyncGenerator[redis.Redis, None]:
-    """
-    获取Redis数据库连接
+def get_redis():
+    """获取Redis客户端实例
     
-    Yields:
-        redis.Redis: Redis客户端
+    Returns:
+        redis.Redis: Redis客户端实例
     """
-    # 创建Redis连接
-    try:
-        conn = redis.from_url(
-            settings.REDIS_URI,
-            encoding="utf-8",
-            decode_responses=True
-        )
-        yield conn
-    finally:
-        # 关闭连接
+    global _redis_client
+    
+    if _redis_client is None:
         try:
-            await conn.close()
-        except Exception:
-            pass 
+            _redis_client = redis.Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                password=settings.REDIS_PASSWORD,
+                db=settings.REDIS_DB,
+                decode_responses=True,
+                encoding='utf-8'
+            )
+            logger.info(f"Redis连接已建立 - {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+        except Exception as e:
+            logger.error(f"Redis连接失败: {str(e)}")
+            raise
+    
+    return _redis_client 

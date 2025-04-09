@@ -4,6 +4,9 @@ import router from './router/index'
 import { createPinia } from 'pinia'
 import errorTracker from './utils/errorTracker'
 
+// 导入全局样式
+import './styles/global.scss'
+
 const app = createApp(App)
 const pinia = createPinia()
 

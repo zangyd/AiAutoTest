@@ -126,100 +126,78 @@ class Logger:
         name: str = "app",
         log_dir: str = "logs",
         level: int = logging.INFO,
-        max_bytes: int = 10 * 1024 * 1024,  # 10MB
-        backup_count: int = 5,
-        format_string: Optional[str] = None,
         console_output: bool = True,
         console_color: bool = False,
         async_mode: bool = False
     ):
-        """
-        初始化日志记录器
-        
-        Args:
-            name: 日志记录器名称
-            log_dir: 日志文件目录
-            level: 日志级别
-            max_bytes: 单个日志文件最大字节数
-            backup_count: 保留的备份文件数量
-            format_string: 日志格式字符串
-            console_output: 是否输出到控制台
-            console_color: 是否启用彩色控制台输出
-            async_mode: 是否启用异步日志
-            
-        Raises:
-            OSError: 当日志目录创建失败或无权限访问时抛出
-        """
+        """初始化日志记录器"""
         self.name = name
         self.level = level
-        self.log_dir = log_dir
-        self.max_bytes = max_bytes
-        self.backup_count = backup_count
-        self.console_color = console_color
-        self.async_mode = async_mode
-        self.console_output = console_output
-        self.handlers: List[logging.Handler] = []
         
-        # 验证并创建日志目录
-        log_path = Path(log_dir)
-        self._ensure_log_dir(log_path)
+        # 创建日志目录
+        os.makedirs(log_dir, exist_ok=True)
         
-        # 创建日志记录器
+        # 配置日志记录器
         self.logger = logging.getLogger(name)
         self.logger.setLevel(level)
-        self.logger.propagate = False  # 禁止日志传播
         
         # 清除已有的处理器
-        for handler in self.logger.handlers[:]:
-            self.logger.removeHandler(handler)
+        self.logger.handlers.clear()
         
-        # 设置日志格式
-        format_string = "%(message)s"  # 不添加换行符
+        # 创建JSON格式化器
+        json_formatter = logging.Formatter('%(message)s')
         
-        # 创建文件处理器
-        file_handler = RotatingFileHandler(
-            filename=str(log_path / f"{name}.log"),
-            maxBytes=max_bytes,
-            backupCount=backup_count,
-            encoding='utf-8',
-            mode='a'  # 使用追加模式
+        # 添加文件处理器
+        file_handler = logging.FileHandler(
+            os.path.join(log_dir, f"{name}.log"),
+            encoding='utf-8'
         )
+        file_handler.setLevel(level)
+        file_handler.setFormatter(json_formatter)  # 设置JSON格式化器
         
-        formatter = logging.Formatter(format_string)
-        file_handler.setFormatter(formatter)
-        
+        # 如果启用异步模式，使用异步处理器包装文件处理器
         if async_mode:
-            async_handler = AsyncHandler(file_handler)
-            async_handler.setFormatter(formatter)  # 确保异步处理器也有格式化器
-            self.logger.addHandler(async_handler)
-            self.handlers.append(async_handler)
-        else:
-            self.logger.addHandler(file_handler)
-            self.handlers.append(file_handler)
+            file_handler = AsyncHandler(file_handler)
+            
+        self.logger.addHandler(file_handler)
         
         # 如果需要，添加控制台处理器
         if console_output:
-            console_handler = logging.StreamHandler(sys.stdout)  # 使用 sys.stdout
-            
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(level)
             if console_color:
-                console_formatter = ColoredFormatter(format_string)
+                console_handler.setFormatter(ColoredFormatter('%(levelname)s: %(message)s'))
             else:
-                console_formatter = logging.Formatter(format_string)
-            
-            console_handler.setFormatter(console_formatter)
-            
-            if async_mode:
-                async_handler = AsyncHandler(console_handler)
-                async_handler.setFormatter(console_formatter)  # 确保异步处理器也有格式化器
-                self.logger.addHandler(async_handler)
-                self.handlers.append(async_handler)
-            else:
-                self.logger.addHandler(console_handler)
-                self.handlers.append(console_handler)
-        
-        # 初始化过滤器列表
-        self.filters: List[logging.Filter] = []
+                console_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+            self.logger.addHandler(console_handler)
     
+    def _log(self, level: str, message: str, *args: Any, **kwargs: Any) -> None:
+        """记录日志的内部方法"""
+        # 将所有kwargs作为extra数据
+        formatted_message = self._format_log_message(level, message, kwargs)
+        self.logger.log(getattr(logging, level), formatted_message)
+        self.flush()  # 立即刷新日志
+
+    def info(self, message: str, *args: Any, **kwargs: Any) -> None:
+        """记录INFO级别的日志"""
+        self._log("INFO", message, *args, **kwargs)
+    
+    def warning(self, message: str, *args: Any, **kwargs: Any) -> None:
+        """记录WARNING级别的日志"""
+        self._log("WARNING", message, *args, **kwargs)
+    
+    def error(self, message: str, *args: Any, **kwargs: Any) -> None:
+        """记录ERROR级别的日志"""
+        self._log("ERROR", message, *args, **kwargs)
+    
+    def debug(self, message: str, *args: Any, **kwargs: Any) -> None:
+        """记录DEBUG级别的日志"""
+        self._log("DEBUG", message, *args, **kwargs)
+    
+    def critical(self, message: str, *args: Any, **kwargs: Any) -> None:
+        """记录CRITICAL级别的日志"""
+        self._log("CRITICAL", message, *args, **kwargs)
+
     def add_filter(self, filter_obj: logging.Filter) -> None:
         """
         添加日志过滤器
@@ -227,7 +205,6 @@ class Logger:
         Args:
             filter_obj: 日志过滤器对象
         """
-        self.filters.append(filter_obj)
         self.logger.addFilter(filter_obj)
     
     def remove_filter(self, filter_obj: logging.Filter) -> None:
@@ -237,180 +214,39 @@ class Logger:
         Args:
             filter_obj: 日志过滤器对象
         """
-        if filter_obj in self.filters:
-            self.filters.remove(filter_obj)
-            self.logger.removeFilter(filter_obj)
+        self.logger.removeFilter(filter_obj)
     
     def flush(self) -> None:
-        """等待所有异步日志处理完成"""
-        for handler in self.handlers:
-            try:
-                handler.flush()
-            except Exception:
-                pass
+        """刷新所有日志处理器"""
+        for handler in self.logger.handlers:
+            handler.flush()
     
     def close(self) -> None:
         """关闭日志记录器"""
-        for handler in self.handlers:
+        for handler in self.logger.handlers:
             try:
                 handler.flush()
                 handler.close()
             except Exception:
                 pass
     
-    def _ensure_log_dir(self, path: Path) -> None:
-        """
-        确保日志目录存在且具有正确的权限
-        
-        Args:
-            path: 日志目录路径
-            
-        Raises:
-            OSError: 当目录创建失败或权限不正确时
-        """
-        def check_dir_permissions(p: Path) -> None:
-            """检查目录权限"""
-            try:
-                if p.exists() and not p.is_dir():
-                    raise OSError(f"指定的路径不是目录: {p}")
-                
-                mode = os.stat(str(p)).st_mode
-                if not mode & stat.S_IRUSR or not mode & stat.S_IWUSR or not mode & stat.S_IXUSR:
-                    raise OSError(f"日志目录无写入权限: {p}")
-            except (OSError, PermissionError) as e:
-                raise OSError(f"无法访问目录 {p}: {str(e)}")
-        
-        if path.exists():
-            check_dir_permissions(path)
-        else:
-            parent = path
-            while not parent.exists() and parent != parent.parent:
-                parent = parent.parent
-            
-            if not parent.exists():
-                raise OSError(f"无法创建日志目录，父目录不存在: {path}")
-            
-            check_dir_permissions(parent)
-            
-            try:
-                path.mkdir(parents=True, mode=0o755)
-                check_dir_permissions(path)
-            except Exception as e:
-                raise OSError(f"创建日志目录失败: {str(e)}")
-    
-    def _format_log(
-        self,
-        level: str,
-        message: str,
-        user_id: Optional[int] = None,
-        **kwargs: Any
-    ) -> str:
-        """
-        格式化日志消息
-        
-        Args:
-            level: 日志级别
-            message: 日志消息
-            user_id: 用户ID
-            **kwargs: 其他日志字段
-            
-        Returns:
-            str: 格式化后的日志消息
-        """
+    def _format_log_message(self, level: str, message: str, extra: Optional[Dict[str, Any]] = None) -> str:
+        """格式化日志消息为JSON格式"""
         log_data = {
             "timestamp": datetime.now().isoformat(),
             "level": level,
             "message": message,
-            "user_id": user_id,
-            **kwargs
+            "logger": self.name  # 添加logger名称以区分不同的日志来源
         }
-        return json.dumps(log_data, ensure_ascii=False)  # 不添加换行符
-    
-    def debug(
-        self,
-        message: str,
-        user_id: Optional[int] = None,
-        **kwargs: Any
-    ) -> None:
-        """记录DEBUG级别日志"""
-        formatted_message = self._format_log("DEBUG", message, user_id, **kwargs)
-        self.logger.debug(formatted_message)
-        if self.console_output:
-            print(formatted_message, flush=True)
-        for handler in self.handlers:
-            try:
-                handler.flush()
-            except Exception:
-                pass
-    
-    def info(
-        self,
-        message: str,
-        user_id: Optional[int] = None,
-        **kwargs: Any
-    ) -> None:
-        """记录INFO级别日志"""
-        formatted_message = self._format_log("INFO", message, user_id, **kwargs)
-        self.logger.info(formatted_message)
-        if self.console_output:
-            print(formatted_message, flush=True)
-        for handler in self.handlers:
-            try:
-                handler.flush()
-            except Exception:
-                pass
-    
-    def warning(
-        self,
-        message: str,
-        user_id: Optional[int] = None,
-        **kwargs: Any
-    ) -> None:
-        """记录WARNING级别日志"""
-        formatted_message = self._format_log("WARNING", message, user_id, **kwargs)
-        self.logger.warning(formatted_message)
-        if self.console_output:
-            print(formatted_message, flush=True)
-        for handler in self.handlers:
-            try:
-                handler.flush()
-            except Exception:
-                pass
-    
-    def error(
-        self,
-        message: str,
-        user_id: Optional[int] = None,
-        **kwargs: Any
-    ) -> None:
-        """记录ERROR级别日志"""
-        formatted_message = self._format_log("ERROR", message, user_id, **kwargs)
-        self.logger.error(formatted_message)
-        if self.console_output:
-            print(formatted_message, flush=True)
-        for handler in self.handlers:
-            try:
-                handler.flush()
-            except Exception:
-                pass
-    
-    def critical(
-        self,
-        message: str,
-        user_id: Optional[int] = None,
-        **kwargs: Any
-    ) -> None:
-        """记录CRITICAL级别日志"""
-        formatted_message = self._format_log("CRITICAL", message, user_id, **kwargs)
-        self.logger.critical(formatted_message)
-        if self.console_output:
-            print(formatted_message, flush=True)
-        for handler in self.handlers:
-            try:
-                handler.flush()
-            except Exception:
-                pass
-    
+        
+        # 确保extra是字典类型
+        if extra and isinstance(extra, dict):
+            # 过滤掉None值，避免在JSON中出现null
+            filtered_extra = {k: v for k, v in extra.items() if v is not None}
+            log_data.update(filtered_extra)
+        
+        return json.dumps(log_data, ensure_ascii=False)
+
     def info_with_context(
         self,
         message: str,

@@ -12,7 +12,6 @@ from redis.asyncio import Redis
 
 from core.database import get_db
 from core.config.settings import settings
-from .models import User
 from .token_blacklist import TokenBlacklist
 
 # 创建OAuth2密码承载器
@@ -152,7 +151,7 @@ async def revoke_token(token: str, redis: Redis) -> bool:
     blacklist = get_token_blacklist(redis)
     return await blacklist.add_to_blacklist(token)
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """
     获取当前用户
     
@@ -166,8 +165,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     Raises:
         HTTPException: 令牌无效或用户不存在时抛出异常
     """
+    # 延迟导入User模型，避免循环导入
+    from .models import User
+    
     # 解码令牌
-    payload = verify_token(token)
+    payload = await verify_token(token)
     
     # 获取用户ID
     user_id = payload.get("sub")

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
+import { useUserStore } from '@/store/modules/user'
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -8,7 +9,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/login',
     name: 'Login',
-    component: () => import('../views/auth/Login.vue'),
+    component: () => import('../views/Login.vue'),
     meta: {
       title: '登录',
       requiresAuth: false
@@ -17,12 +18,13 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/dashboard',
     name: 'Dashboard',
-    component: () => import('../views/dashboard/Index.vue'),
+    component: () => import('../views/Dashboard.vue'),
     meta: {
       title: '仪表盘',
       requiresAuth: true
     }
   },
+  /* 暂时注释未实现的路由
   {
     path: '/projects',
     name: 'Projects',
@@ -59,6 +61,7 @@ const routes: Array<RouteRecordRaw> = [
       requiresAuth: true
     }
   },
+  */
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
@@ -78,16 +81,26 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to, from, next) => {
   // 设置页面标题
-  document.title = `${to.meta.title} - 自动化测试平台`
+  document.title = `${to.meta.title} - AI自动化测试平台`
 
   // 检查是否需要认证
   if (to.meta.requiresAuth) {
-    const token = localStorage.getItem('token')
-    if (!token) {
+    const userStore = useUserStore()
+    if (!userStore.isLoggedIn) {
       next({ name: 'Login', query: { redirect: to.fullPath } })
       return
     }
   }
+  
+  // 如果已登录且访问登录页，重定向到首页
+  if (to.name === 'Login') {
+    const userStore = useUserStore()
+    if (userStore.isLoggedIn) {
+      next({ name: 'Dashboard' })
+      return
+    }
+  }
+  
   next()
 })
 

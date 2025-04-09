@@ -1,8 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request, Form, Depends, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.utils import get_authorization_scheme_param
 from pydantic import BaseModel
@@ -12,14 +9,21 @@ import logging
 from datetime import datetime, timedelta
 from jose import jwt
 from starlette.middleware.sessions import SessionMiddleware
+from sqlalchemy.orm import Session
+import redis
 
 from api import api_router
 from api.core.auth import get_current_user
-from api.core.base.models import UserOut
+from core.auth.schemas import UserOut, CaptchaResponse, TokenResponse
 from core.config.jwt_config import jwt_settings
 from core.config.settings import settings
-from core.auth.jwt import jwt_handler
+from core.auth.jwt import create_access_token
 from core.logging import LoggingMiddleware
+from core.database import get_db
+from core.database.redis import get_redis
+from core.auth.service import AuthService
+from core.auth.captcha import CaptchaManager
+from core.auth.models import User
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +56,17 @@ def validate_critical_configs():
     
     logger.info(f"当前运行环境: {settings.ENV}")
 
+def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+    """获取认证服务实例
+    
+    Args:
+        db (Session): 数据库会话实例
+        
+    Returns:
+        AuthService: 认证服务实例
+    """
+    return AuthService(db=db)
+
 def create_app() -> FastAPI:
     """
     创建FastAPI应用实例
@@ -69,7 +84,7 @@ def create_app() -> FastAPI:
     )
     
     # 添加会话中间件
-    app.add_middleware(SessionMiddleware, secret_key=jwt_settings.SECRET_KEY)
+    app.add_middleware(SessionMiddleware, secret_key=jwt_settings.JWT_SECRET_KEY)
 
     # 添加CORS中间件
     app.add_middleware(
@@ -82,27 +97,6 @@ def create_app() -> FastAPI:
 
     # 添加日志中间件
     app.add_middleware(LoggingMiddleware)
-
-    # 设置模板目录
-    templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
-
-    # 用户认证相关模型
-    class Token(BaseModel):
-        access_token: str
-        token_type: str
-
-    class TokenData(BaseModel):
-        username: Optional[str] = None
-
-    # 模拟用户数据
-    users_db = {
-        "admin": {
-            "username": "admin",
-            "password": "admin",
-            "email": "admin@example.com",
-            "permissions": ["admin", "user_view", "user_manage"]
-        }
-    }
 
     oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -128,47 +122,71 @@ def create_app() -> FastAPI:
             content={"message": "Internal server error"}
         )
 
-    @app.post("/api/v1/auth/login", response_model=Token)
-    async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-        if form_data.username not in users_db:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户名或密码错误",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    @app.post("/api/v1/auth/login", response_model=TokenResponse)
+    async def login(
+        form_data: OAuth2PasswordRequestForm = Depends(),
+        captcha_id: str = Form(...),
+        captcha_text: str = Form(...),
+        auth_service: AuthService = Depends(get_auth_service)
+    ):
+        """用户登录
         
-        user = users_db[form_data.username]
-        if user["password"] != form_data.password:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="用户名或密码错误",
-                headers={"WWW-Authenticate": "Bearer"},
+        Args:
+            form_data: 登录表单数据
+            captcha_id: 验证码ID
+            captcha_text: 验证码文本
+            auth_service: 认证服务实例
+            
+        Returns:
+            TokenResponse: 包含访问令牌和刷新令牌的响应
+            
+        Raises:
+            HTTPException: 登录失败时抛出异常
+        """
+        try:
+            # 验证用户
+            user = auth_service.authenticate_user(
+                username=form_data.username,
+                password=form_data.password,
+                captcha_id=captcha_id,
+                captcha_text=captcha_text
             )
+
+            # 生成令牌
+            tokens = auth_service.create_tokens(user)
+            return tokens
+
+        except HTTPException as e:
+            raise e
+        except Exception as e:
+            logger.error(f"Login error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
+
+    @app.get("/")
+    async def read_root():
+        """API根路由
         
-        access_token = jwt_handler.create_token(
-            data={"sub": user["username"]},
-            expires_delta=jwt_settings.access_token_expires
-        )
-        return {"access_token": access_token, "token_type": jwt_settings.TOKEN_TYPE}
+        Returns:
+            dict: API状态信息
+        """
+        return {
+            "status": "ok",
+            "message": "自动化测试平台API服务正在运行",
+            "version": "1.0.0",
+            "docs_url": "/docs",
+            "redoc_url": "/redoc"
+        }
 
-    @app.get("/", response_class=HTMLResponse)
-    async def read_root(request: Request):
-        return templates.TemplateResponse("base.html", {"request": request})
+    # 包含API路由
+    app.include_router(api_router, prefix="/api")
 
-    @app.get("/login", response_class=HTMLResponse)
-    async def login_page(request: Request):
-        return templates.TemplateResponse("login.html", {"request": request})
-
-    @app.get("/dashboard", response_class=HTMLResponse)
-    async def dashboard(request: Request, current_user: UserOut = Depends(get_current_user)):
-        return templates.TemplateResponse(
-            "dashboard.html",
-            {"request": request, "user": current_user}
-        )
-
-    # 注册路由
-    app.include_router(api_router)
-    
     return app
 
-app = create_app() 
+app = create_app()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000) 

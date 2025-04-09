@@ -1,0 +1,52 @@
+// 参考火山引擎的颜色方案
+
+// 主色系
+$primary-color: #2B65D9; // 主色调
+$primary-light: #4F86F0;
+$primary-dark: #0E429C;
+
+// 功能色
+$success-color: #00C48C;
+$warning-color: #FFB020;
+$error-color: #FF4D4F;
+$info-color: #1890FF;
+
+// 中性色
+$black: #000000;
+$dark-gray: #333333;
+$gray: #666666;
+$light-gray: #999999;
+$border-color: #E5E7EB;
+$background-color: #F5F7FA;
+$white: #FFFFFF;
+
+// 字体
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+$font-size-base: 14px;
+$font-size-sm: 12px;
+$font-size-lg: 16px;
+$font-size-xl: 20px;
+
+// 边框
+$border-radius-base: 4px;
+$border-radius-sm: 2px;
+$border-radius-lg: 8px;
+$border-width: 1px;
+
+// 阴影
+$box-shadow-base: 0 2px 8px rgba(0, 0, 0, 0.15);
+$box-shadow-light: 0 1px 4px rgba(0, 0, 0, 0.08);
+$box-shadow-dark: 0 4px 12px rgba(0, 0, 0, 0.2);
+
+// 间距
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-lg: 16px;
+$spacing-xl: 24px;
+$spacing-xxl: 32px;
+
+// 布局
+$header-height: 64px;
+$sidebar-width: 240px;
+$content-padding: 24px; 

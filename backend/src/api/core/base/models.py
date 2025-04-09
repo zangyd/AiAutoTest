@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 from pydantic import BaseModel, Field, EmailStr, constr, ConfigDict
+from core.auth.models import Role
 
 class StatusEnum(str, Enum):
     """状态枚举"""
@@ -46,29 +47,26 @@ class PermissionEnum(str, Enum):
 
 class BaseTimeModel(BaseModel):
     """基础时间模型"""
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="创建时间")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="更新时间")
-
-    model_config = ConfigDict(from_attributes=True)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
 
 class Permission(BaseModel):
     """权限模型"""
-    code: PermissionEnum = Field(..., description="权限代码")
-    name: str = Field(..., description="权限名称")
-    description: Optional[str] = Field(None, description="权限描述")
-
-class Role(BaseModel):
-    """角色模型"""
-    name: str = Field(..., description="角色名称")
-    description: Optional[str] = Field(None, description="角色描述")
-    permissions: List[PermissionEnum] = Field(default=[], description="角色拥有的权限列表")
+    code: str
+    name: str
+    description: Optional[str] = None
 
 class UserBase(BaseModel):
     """用户基础模型"""
-    username: constr(min_length=3, max_length=20) = Field(..., description="用户名")
-    email: EmailStr = Field(..., description="邮箱")
+    username: str
+    email: str
+    real_name: str
+    position: Optional[str] = None
+    is_active: bool = True
+    is_superuser: bool = False
     department: str = Field(..., description="部门")
-    position: str = Field(..., description="职位")
     status: StatusEnum = StatusEnum.ACTIVE
     roles: List[int] = Field(default=[], description="用户角色ID列表")
     permissions: List[PermissionEnum] = Field(default=[], description="用户权限列表") 

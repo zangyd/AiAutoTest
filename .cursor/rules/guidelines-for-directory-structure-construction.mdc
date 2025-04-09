@@ -1,7 +1,7 @@
 ---
-description: 目录结构
+description: 目录结构指南
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 ---
 description: 目录结构建设指南

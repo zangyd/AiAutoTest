@@ -1,13 +1,20 @@
 from logging.config import fileConfig
 import os
+import sys
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool, create_engine
-from sqlalchemy.engine.url import URL
+from sqlalchemy.engine.url import URL, make_url
 
 from alembic import context
+
+# 添加src目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+# 导入SQLAlchemy模型
+from src.core.auth.models import Base
 
 # 加载环境变量
 load_dotenv()
@@ -30,19 +37,11 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+target_metadata = Base.metadata
 
 def get_url():
-    return URL.create(
-        drivername="mysql+pymysql",
-        username=DB_USER,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=int(DB_PORT),
-        database=DB_NAME
-    )
+    """生成数据库URL，确保密码被正确URL编码"""
+    return f"mysql+pymysql://{DB_USER}:{quote_plus(DB_PASSWORD)}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""

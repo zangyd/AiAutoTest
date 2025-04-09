@@ -3,74 +3,99 @@
 管理JWT相关的配置项，包括密钥、算法、过期时间等
 """
 
+import os
 from datetime import timedelta
-from .base_settings import BaseAppSettings
-from pydantic import Field
-from typing import Optional, ClassVar
-from pydantic_settings import BaseSettings
+from functools import lru_cache
+from pydantic import Field, field_validator
+from typing import Optional
+from .settings import Settings
 
-class JWTSettings(BaseSettings):
+class JWTSettings(Settings):
     """JWT配置类"""
     
-    # JWT密钥 - 用于签名令牌
+    # JWT基础配置
     JWT_SECRET_KEY: str = Field(
-        default="请在环境变量或.env文件中设置此值",  # 不提供实际可用的默认值
-        env="JWT_SECRET_KEY",
-        description="用于JWT签名的密钥，必须设置为强密码"
+        default="aabbccDFllx9823!!@@ddFFBBcde12345678",
+        description="JWT密钥"
+    )
+    JWT_ALGORITHM: str = Field(
+        default="HS256",
+        description="JWT算法"
+    )
+    JWT_TOKEN_TYPE: str = Field(
+        default="Bearer",
+        description="Token类型"
+    )
+    JWT_ISSUER: str = Field(
+        default="autotest",
+        description="Token发行者"
+    )
+    JWT_AUDIENCE: str = Field(
+        default="autotest-users",
+        description="Token接收者"
     )
     
-    # JWT算法
-    JWT_ALGORITHM: str = Field(default="HS256", env="JWT_ALGORITHM")
+    # Token过期时间配置
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=30,
+        description="访问令牌过期时间(分钟)"
+    )
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=7,
+        description="刷新令牌过期时间(天)"
+    )
+    BLACKLIST_TOKEN_EXPIRES: int = Field(
+        default=24 * 60,  # 24小时
+        description="黑名单令牌过期时间(分钟)"
+    )
     
-    # 访问令牌过期时间（分钟）
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, env="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    @field_validator("JWT_SECRET_KEY")
+    def validate_jwt_secret_key(cls, v: str) -> str:
+        """验证JWT密钥长度"""
+        if len(v) < 32:
+            raise ValueError("JWT密钥长度必须至少为32个字符")
+        return v
     
-    # 刷新令牌过期时间（天）
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, env="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
+    @field_validator("JWT_ALGORITHM")
+    def validate_jwt_algorithm(cls, v: str) -> str:
+        """验证JWT算法"""
+        allowed_algorithms = ["HS256", "HS384", "HS512"]
+        if v not in allowed_algorithms:
+            raise ValueError(f"不支持的JWT算法: {v}. 支持的算法: {', '.join(allowed_algorithms)}")
+        return v
     
-    # 黑名单过期时间（秒）- 默认7天
-    JWT_BLACKLIST_TTL: int = Field(default=7 * 24 * 60 * 60, env="JWT_BLACKLIST_TTL")
+    def get_access_token_expires(self) -> timedelta:
+        """获取访问令牌过期时间"""
+        return timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    # 令牌类型
-    JWT_TOKEN_TYPE: ClassVar[str] = "Bearer"
+    def get_refresh_token_expires(self) -> timedelta:
+        """获取刷新令牌过期时间"""
+        return timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
     
-    class Config:
-        """配置类"""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        extra = "ignore"
+    def get_blacklist_token_expires(self) -> timedelta:
+        """获取黑名单令牌过期时间"""
+        return timedelta(minutes=self.BLACKLIST_TOKEN_EXPIRES)
     
-    @property
-    def access_token_expires(self) -> timedelta:
-        """访问令牌过期时间"""
-        return timedelta(minutes=self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    @property
-    def refresh_token_expires(self) -> timedelta:
-        """刷新令牌过期时间"""
-        return timedelta(days=self.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
-    
-    @property
-    def blacklist_token_expires(self) -> int:
-        """
-        获取黑名单令牌过期时间
-        
-        确保已撤销的令牌保留在黑名单中足够长的时间
-        """
-        # 使用的是较长的刷新令牌过期时间，加上1天的安全边界
-        return self.JWT_BLACKLIST_TTL
-
-    def _configure_for_environment(self) -> None:
+    def configure_for_environment(self) -> None:
         """根据环境配置特定的设置"""
-        super()._configure_for_environment()
-        
         if self.ENV == "test":
-            self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 5
-            self.JWT_REFRESH_TOKEN_EXPIRE_DAYS = 1
+            self.ACCESS_TOKEN_EXPIRE_MINUTES = 5
+            self.REFRESH_TOKEN_EXPIRE_DAYS = 1
+            self.BLACKLIST_TOKEN_EXPIRES = 300  # 5分钟
         elif self.ENV == "production":
-            self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES = 15
-            self.JWT_REFRESH_TOKEN_EXPIRE_DAYS = 30
+            self.ACCESS_TOKEN_EXPIRE_MINUTES = 15
+            self.REFRESH_TOKEN_EXPIRE_DAYS = 30
+            self.BLACKLIST_TOKEN_EXPIRES = 7 * 24 * 60 * 60  # 7天
 
-# 创建全局JWT配置实例
-jwt_settings = JWTSettings() 
+@lru_cache()
+def get_jwt_settings() -> JWTSettings:
+    """获取JWT配置实例"""
+    try:
+        settings = JWTSettings()
+        settings.configure_for_environment()
+        return settings
+    except Exception as e:
+        raise RuntimeError(f"加载JWT配置失败: {str(e)}")
+
+# 创建JWT配置单例
+jwt_settings = get_jwt_settings() 

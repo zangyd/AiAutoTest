@@ -1,7 +1,7 @@
 ---
-description: 
+description: 技术难点
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 ---
 description: 项目分析文档

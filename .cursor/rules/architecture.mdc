@@ -1,7 +1,7 @@
 ---
-description: 
+description: 系统架构文档
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 ---
 description: 系统架构文档
