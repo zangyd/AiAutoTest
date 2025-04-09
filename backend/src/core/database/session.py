@@ -3,12 +3,12 @@
 """
 from typing import Generator
 from urllib.parse import quote_plus
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from core.config.settings import settings
 from core.utils.logger import Logger
+from core.models import Base, metadata
 
 # 配置日志记录器
 logger = Logger(
@@ -16,9 +16,6 @@ logger = Logger(
     level=settings.LOG_LEVEL,
     console_color=True
 )
-
-# 创建元数据对象
-metadata = MetaData()
 
 # 创建数据库引擎
 try:
@@ -55,9 +52,6 @@ SessionLocal = sessionmaker(
     autoflush=False,
     expire_on_commit=False
 )
-
-# 创建基类
-Base = declarative_base(metadata=metadata)
 
 # 创建全局会话
 session = SessionLocal()

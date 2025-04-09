@@ -102,19 +102,23 @@ def create_tables(engine):
         existing_tables = set(inspector.get_table_names())
         
         # 创建不存在的表
-        with engine.begin() as conn:
-            for table_name, table in tables.items():
-                if table_name not in existing_tables:
-                    logger.info(f"创建表: {table_name}")
-                    table.create(conn)
-            logger.info("所有缺失的表创建完成")
+        for table_name, table in tables.items():
+            if table_name not in existing_tables:
+                logger.info(f"创建表: {table_name}")
+                table.create(engine)
+        logger.info("所有缺失的表创建完成")
         
     except Exception as e:
         logger.error(f"创建表时发生错误: {str(e)}")
         raise
 
 # 监听表创建事件
-@event.listens_for(Base.metadata, 'before_create')
-def receive_before_create(target, connection, **kw):
-    """在创建表之前，确保按依赖顺序创建"""
-    create_tables(connection) 
+@event.listens_for(Base.metadata, 'after_create')
+def receive_after_create(target, connection, **kw):
+    """在创建表之后，创建关联表"""
+    from core.auth.models import role_permissions, user_roles, user_departments
+    
+    # 创建关联表
+    for table in [role_permissions, user_roles, user_departments]:
+        if not inspect(connection).has_table(table.name):
+            table.create(connection) 

@@ -9,7 +9,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 
 from core.database.session import SessionLocal, Base, engine
-from core.auth.models import User, Role, Permission, Department
+from core.auth.models import User, Role, Permission, Department, role_permissions, user_roles
 from core.security import get_password_hash
 from core.config.settings import settings
 
@@ -19,6 +19,7 @@ def init_database():
 
 def init_permissions(db):
     """初始化权限"""
+    now = datetime.utcnow()
     permissions = [
         {
             "name": "用户管理",
@@ -26,7 +27,9 @@ def init_permissions(db):
             "description": "用户的增删改查权限",
             "type": "system",
             "resource": "user",
-            "action": "manage"
+            "action": "manage",
+            "created_at": now,
+            "updated_at": now
         },
         {
             "name": "角色管理",
@@ -34,7 +37,9 @@ def init_permissions(db):
             "description": "角色的增删改查权限",
             "type": "system",
             "resource": "role",
-            "action": "manage"
+            "action": "manage",
+            "created_at": now,
+            "updated_at": now
         },
         {
             "name": "部门管理",
@@ -42,7 +47,9 @@ def init_permissions(db):
             "description": "部门的增删改查权限",
             "type": "system",
             "resource": "department",
-            "action": "manage"
+            "action": "manage",
+            "created_at": now,
+            "updated_at": now
         }
     ]
     
@@ -57,23 +64,28 @@ def init_roles(db):
     """初始化角色"""
     # 获取所有权限
     all_permissions = db.query(Permission).all()
+    now = datetime.utcnow()
     
     # 创建超级管理员角色
     admin_role = Role(
         name="超级管理员",
         description="系统超级管理员",
         is_system=False,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        created_by="system",
-        updated_by="system"
+        created_at=now,
+        updated_at=now
     )
     db.add(admin_role)
     db.flush()  # 刷新以获取role_id
     
     # 为超级管理员添加所有权限
     for permission in all_permissions:
-        admin_role.permissions.append(permission)
+        db.execute(
+            role_permissions.insert().values(
+                role_id=admin_role.id,
+                permission_id=permission.id,
+                created_at=now
+            )
+        )
     
     # 创建部门管理员角色
     dept_permissions = db.query(Permission).filter(
@@ -87,17 +99,21 @@ def init_roles(db):
         name="部门管理员",
         description="部门管理员",
         is_system=False,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        created_by="system",
-        updated_by="system"
+        created_at=now,
+        updated_at=now
     )
     db.add(dept_role)
     db.flush()  # 刷新以获取role_id
     
     # 为部门管理员添加指定权限
     for permission in dept_permissions:
-        dept_role.permissions.append(permission)
+        db.execute(
+            role_permissions.insert().values(
+                role_id=dept_role.id,
+                permission_id=permission.id,
+                created_at=now
+            )
+        )
     
     db.commit()
     return [admin_role, dept_role]
@@ -107,6 +123,7 @@ def init_users(db):
     # 获取超级管理员角色
     admin_role = db.query(Role).filter(Role.name == "超级管理员").first()
     dept_role = db.query(Role).filter(Role.name == "部门管理员").first()
+    now = datetime.utcnow()
     
     # 从环境变量获取密码，如果没有则使用默认密码
     admin_password = os.getenv('ADMIN_PASSWORD', settings.MYSQL_PASSWORD)
@@ -117,19 +134,23 @@ def init_users(db):
         email="admin@example.com",
         password_hash=get_password_hash(admin_password),
         real_name="系统管理员",
-        position="系统管理员",
         is_active=True,
         is_superuser=True,
         login_attempts=0,
         locked_until=None,
-        password_changed_at=datetime.utcnow(),
-        last_login_at=None,
-        last_login_ip=None,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        created_by="system",
-        updated_by="system",
-        roles=[admin_role]
+        created_at=now,
+        updated_at=now
+    )
+    db.add(admin_user)
+    db.flush()  # 刷新以获取user_id
+    
+    # 为超级管理员添加角色
+    db.execute(
+        user_roles.insert().values(
+            user_id=admin_user.id,
+            role_id=admin_role.id,
+            created_at=now
+        )
     )
     
     # 创建测试管理员用户
@@ -138,23 +159,25 @@ def init_users(db):
         email="test@example.com",
         password_hash=get_password_hash(admin_password),
         real_name="测试管理员",
-        position="测试管理员",
         is_active=True,
         is_superuser=False,
         login_attempts=0,
         locked_until=None,
-        password_changed_at=datetime.utcnow(),
-        last_login_at=None,
-        last_login_ip=None,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
-        created_by="system",
-        updated_by="system",
-        roles=[dept_role]
+        created_at=now,
+        updated_at=now
+    )
+    db.add(test_admin)
+    db.flush()  # 刷新以获取user_id
+    
+    # 为测试管理员添加角色
+    db.execute(
+        user_roles.insert().values(
+            user_id=test_admin.id,
+            role_id=dept_role.id,
+            created_at=now
+        )
     )
     
-    db.add(admin_user)
-    db.add(test_admin)
     db.commit()
     return [admin_user, test_admin]
 

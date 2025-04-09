@@ -74,16 +74,6 @@ class Permission(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'))
 
-    # 关系
-    roles: Mapped[List["Role"]] = relationship(
-        'Role',
-        secondary='role_permissions',
-        primaryjoin="Permission.id==role_permissions.c.permission_id",
-        secondaryjoin="Role.id==role_permissions.c.role_id",
-        back_populates="permissions",
-        lazy='joined'
-    )
-
 class Role(Base):
     """角色模型"""
     __tablename__ = 'roles'
@@ -105,24 +95,6 @@ class Role(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'))
 
-    # 关系
-    permissions: Mapped[List[Permission]] = relationship(
-        'Permission',
-        secondary='role_permissions',
-        primaryjoin="Role.id==role_permissions.c.role_id",
-        secondaryjoin="Permission.id==role_permissions.c.permission_id",
-        back_populates="roles",
-        lazy='joined'
-    )
-    users: Mapped[List["User"]] = relationship(
-        'User',
-        secondary='user_roles',
-        primaryjoin="Role.id==user_roles.c.role_id",
-        secondaryjoin="User.id==user_roles.c.user_id",
-        back_populates="roles",
-        lazy='joined'
-    )
-
 class Department(Base):
     """部门表"""
     __tablename__ = 'departments'
@@ -143,14 +115,6 @@ class Department(Base):
     # 带默认值的字段
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'))
-
-    # 关系
-    users: Mapped[List["User"]] = relationship(
-        'User',
-        secondary='user_departments',
-        remote_side='user_departments.c.department_id',
-        lazy='joined'
-    )
 
 class User(Base):
     """用户表"""
@@ -178,20 +142,6 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'))
 
-    # 关系
-    roles: Mapped[List[Role]] = relationship(
-        'Role',
-        secondary='user_roles',
-        back_populates='users',
-        lazy='joined'
-    )
-    departments: Mapped[List[Department]] = relationship(
-        'Department',
-        secondary='user_departments',
-        remote_side='user_departments.c.user_id',
-        lazy='joined'
-    )
-
 class LoginLog(Base):
     """登录日志表"""
     __tablename__ = 'login_logs'
@@ -202,13 +152,16 @@ class LoginLog(Base):
     
     # 必填字段
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    login_time: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
-    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
+    ip_address: Mapped[str] = mapped_column(String(50), nullable=False)
+    user_agent: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)  # success, failed
     
     # 可选字段
-    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     message: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    
+    # 带默认值的字段
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
 
 class OperationLog(Base):
     """操作日志表"""
@@ -220,18 +173,20 @@ class OperationLog(Base):
     
     # 必填字段
     user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    operation_time: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
+    ip_address: Mapped[str] = mapped_column(String(50), nullable=False)
     module: Mapped[str] = mapped_column(String(50), nullable=False)
     operation: Mapped[str] = mapped_column(String(50), nullable=False)
-    method: Mapped[str] = mapped_column(String(20), nullable=False)
-    url: Mapped[str] = mapped_column(String(200), nullable=False)
-    status: Mapped[int] = mapped_column(Integer, nullable=False)
     
     # 可选字段
-    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    user_agent: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    request_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    response_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    message: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    request_method: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    request_url: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    request_params: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    response_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    response_message: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    
+    # 带默认值的字段
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text('CURRENT_TIMESTAMP'))
 
 # ... 其他模型 ... 
