@@ -160,10 +160,14 @@ class AuthService(metaclass=Singleton):
                 "aud": jwt_settings.JWT_AUDIENCE
             }
             
+            # 获取过期时间
+            access_token_expires = jwt_settings.get_access_token_expires()
+            refresh_token_expires = jwt_settings.get_refresh_token_expires()
+            
             # 生成访问令牌
             access_token_data = {
                 **token_data,
-                "exp": datetime.utcnow() + jwt_settings.access_token_expires,
+                "exp": datetime.utcnow() + access_token_expires,
                 "type": "access"
             }
             
@@ -176,7 +180,7 @@ class AuthService(metaclass=Singleton):
             # 生成刷新令牌
             refresh_token_data = {
                 "sub": str(user.id),
-                "exp": datetime.utcnow() + jwt_settings.refresh_token_expires,
+                "exp": datetime.utcnow() + refresh_token_expires,
                 "type": "refresh"
             }
             
@@ -189,7 +193,7 @@ class AuthService(metaclass=Singleton):
             # 存储刷新令牌
             self.redis.setex(
                 f"refresh_token:{user.id}",
-                int(jwt_settings.refresh_token_expires.total_seconds()),
+                int(refresh_token_expires.total_seconds()),
                 refresh_token
             )
             
@@ -197,7 +201,7 @@ class AuthService(metaclass=Singleton):
                 access_token=access_token,
                 refresh_token=refresh_token,
                 token_type=jwt_settings.JWT_TOKEN_TYPE,
-                expires_in=int(jwt_settings.access_token_expires.total_seconds())
+                expires_in=int(access_token_expires.total_seconds())
             )
             
         except Exception as e:
