@@ -19,7 +19,7 @@ from core.config.jwt_config import jwt_settings
 from core.config.settings import settings
 from core.auth.jwt import create_access_token
 from core.logging import LoggingMiddleware
-from core.database import get_db
+from core.database import get_db, init_db
 from core.database.redis import get_redis
 from core.auth.service import AuthService
 from core.auth.captcha import CaptchaManager
@@ -76,6 +76,14 @@ def create_app() -> FastAPI:
     """
     # 验证关键配置
     validate_critical_configs()
+    
+    # 初始化数据库
+    try:
+        init_db()
+        logger.info("数据库初始化成功")
+    except Exception as e:
+        logger.error(f"数据库初始化失败: {str(e)}")
+        raise RuntimeError("数据库初始化失败") from e
     
     app = FastAPI(
         title="测试平台",
@@ -178,6 +186,19 @@ def create_app() -> FastAPI:
             "version": "1.0.0",
             "docs_url": "/docs",
             "redoc_url": "/redoc"
+        }
+
+    @app.get("/api/v1/health")
+    async def health_check():
+        """健康检查接口
+        
+        Returns:
+            dict: 健康状态信息
+        """
+        return {
+            "status": "ok",
+            "message": "服务正常运行",
+            "timestamp": datetime.now().isoformat()
         }
 
     # 包含API路由

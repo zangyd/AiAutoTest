@@ -346,51 +346,26 @@ class AuthService(metaclass=Singleton):
         """记录登录尝试
         
         Args:
-            user (User): 用户对象
-            success (bool): 是否成功
-            message (str): 状态消息
+            user: 用户对象
+            success: 是否成功
+            message: 详细信息
         """
         try:
-            # 创建登录日志记录
-            login_log = LoginLog(
+            log = LoginLog(
                 user_id=user.id,
                 username=user.username,
-                login_time=datetime.utcnow(),
-                login_ip=None,  # 在路由层设置
-                user_agent=None,  # 在路由层设置
-                login_status=success,
-                status_message=message
+                ip_address="127.0.0.1",  # TODO: 从请求中获取
+                user_agent="Unknown",    # TODO: 从请求中获取
+                status="success" if success else "failed",
+                message=message
             )
-            
-            # 添加到会话
-            self.db.add(login_log)
-            
-            # 如果登录失败，增加失败计数
-            if not success:
-                user.login_attempts = (user.login_attempts or 0) + 1
-                # 如果失败次数超过限制，锁定账户
-                if user.login_attempts >= self._max_login_attempts:
-                    user.locked_until = datetime.utcnow() + timedelta(minutes=self._lockout_duration)
-                    user.is_active = False
-                    auth_logger.warning(f"用户账户已锁定: {user.username}, 失败次数: {user.login_attempts}")
-            else:
-                # 登录成功，重置失败计数
-                user.login_attempts = 0
-                user.locked_until = None
-                
-            # 提交事务
-            try:
-                self.db.commit()
-                auth_logger.info(f"登录日志记录成功: {user.username}, 状态: {'成功' if success else '失败'}")
-            except Exception as e:
-                self.db.rollback()
-                auth_logger.error(f"提交登录日志失败: {str(e)}")
-                raise
-            
+            self.db.add(log)
+            self.db.commit()
+            auth_logger.info(f"登录尝试记录已保存 - 用户: {user.username}, 状态: {'成功' if success else '失败'}")
         except Exception as e:
-            auth_logger.error(f"记录登录尝试失败: {str(e)}")
             self.db.rollback()
-            # 不抛出异常，避免影响主流程
+            auth_logger.error(f"记录登录尝试失败: {str(e)}")
+            raise
 
     def refresh_token(self, refresh_token: str) -> TokenResponse:
         """
