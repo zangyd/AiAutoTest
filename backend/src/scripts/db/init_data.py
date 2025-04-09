@@ -210,7 +210,7 @@ def init_users(db):
         now = datetime.utcnow()
         
         # 从环境变量获取密码，如果没有则使用默认密码
-        admin_password = os.getenv('ADMIN_PASSWORD', settings.MYSQL_PASSWORD)
+        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
         
         # 创建超级管理员用户
         admin_user = User(
