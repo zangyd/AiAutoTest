@@ -60,7 +60,7 @@ class BaseAppSettings(BaseSettings):
         description="Redis端口"
     )
     REDIS_PASSWORD: Optional[str] = Field(
-        default=None,
+        default="Autotest@2024",
         description="Redis密码"
     )
     REDIS_DB: int = Field(

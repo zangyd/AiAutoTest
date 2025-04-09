@@ -15,10 +15,25 @@ from core.config.settings import settings
 
 def init_database():
     """初始化数据库表"""
+    print("正在创建数据库表...")
     Base.metadata.create_all(bind=engine)
+    print("数据库表创建完成")
+
+def clean_tables(db):
+    """清空相关表的数据"""
+    print("正在清空表数据...")
+    # 按照外键依赖关系，从下往上清空
+    db.execute(user_roles.delete())
+    db.execute(role_permissions.delete())
+    db.query(User).delete()
+    db.query(Role).delete()
+    db.query(Permission).delete()
+    db.commit()
+    print("表数据清空完成")
 
 def init_permissions(db):
     """初始化权限"""
+    print("正在初始化权限数据...")
     now = datetime.utcnow()
     permissions = [
         {
@@ -57,7 +72,13 @@ def init_permissions(db):
         perm = Permission(**perm_data)
         db.add(perm)
     
-    db.commit()
+    try:
+        db.commit()
+        print("权限数据初始化完成")
+    except Exception as e:
+        db.rollback()
+        print(f"权限数据初始化失败: {str(e)}")
+        raise
     return permissions
 
 def init_roles(db):
@@ -184,13 +205,15 @@ def init_users(db):
 def init_data():
     """初始化所有数据"""
     # 初始化数据库表
-    print("正在初始化数据库表...")
+    print("开始数据初始化...")
     init_database()
     
     db = SessionLocal()
     try:
+        # 清空表数据
+        clean_tables(db)
+        
         # 初始化权限
-        print("正在初始化权限...")
         init_permissions(db)
         
         # 初始化角色
@@ -201,15 +224,14 @@ def init_data():
         print("正在初始化用户...")
         init_users(db)
         
-        print("数据初始化完成！")
+        print("数据初始化完成!")
         print(f"超级管理员账号：admin")
         print(f"超级管理员密码：{os.getenv('ADMIN_PASSWORD', settings.MYSQL_PASSWORD)}")
         print(f"测试管理员账号：test_admin")
         print(f"测试管理员密码：{os.getenv('ADMIN_PASSWORD', settings.MYSQL_PASSWORD)}")
         
     except Exception as e:
-        print(f"初始化数据失败: {str(e)}")
-        db.rollback()
+        print(f"数据初始化失败: {str(e)}")
         raise
     finally:
         db.close()

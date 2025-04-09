@@ -1,10 +1,12 @@
 # Web框架
 fastapi==0.109.0
 uvicorn==0.27.0
+itsdangerous>=2.2.0
 
 # 调试工具
 debugpy>=1.6.7
 python-dotenv>=1.0.0
+colorama>=0.4.6
 
 # 测试工具
 pytest==7.4.4
@@ -24,14 +26,18 @@ pymysql>=1.0.2
 
 # 工具包
 pydantic>=2.0.0
+pydantic-settings>=2.8.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6
 aiofiles>=0.8.0
+python-magic>=0.4.27
+email-validator>=2.2.0
+PyJWT>=2.10.0
 
 # 自动化测试
 selenium>=4.1.0
-playwright==1.41.2
+playwright==1.51.0
 appium-python-client>=2.6.0
 pytest-playwright>=0.7.0
 pytest-selenium>=4.0.0

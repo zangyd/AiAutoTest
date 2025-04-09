@@ -15,25 +15,21 @@ from core.utils.singleton import Singleton
 from core.config.settings import settings
 from core.config.jwt_config import jwt_settings
 from core.database import get_db
-from core.security import verify_password
+from core.security import verify_password, pwd_context, get_password_hash
 from .models import User, LoginLog
 from .schemas import TokenData, TokenResponse
-from ..logging.logger import Logger
+from core.logging import logger
 from .captcha import CaptchaManager
 from api.services.user import UserService
 from core.cache import CacheManager
 from core.database.session import Base, metadata, SessionLocal
+from core.redis import get_redis
+from core.exceptions import InvalidCredentialsException, TokenBlacklistedException
+from core.security import create_tokens, verify_token
 
 # 配置auth专用日志记录器
 log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "logs")
-auth_logger = Logger(
-    name="auth",
-    log_dir=log_dir,
-    level=logging.DEBUG,
-    console_output=True,
-    console_color=True,
-    async_mode=False
-)
+auth_logger = logger
 
 def check_redis_alive(redis_client: redis.Redis) -> bool:
     """检查Redis连接是否有效
@@ -88,8 +84,9 @@ class AuthService(metaclass=Singleton):
     
     def __init__(self):
         """初始化认证服务"""
-        self._redis_client = RedisClient()
-        self._pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        self._redis = get_redis()
+        self._db = next(get_db())
+        self._pwd_context = pwd_context
         self._token_blacklist_key = "token_blacklist"
         self._max_login_attempts = settings.MAX_LOGIN_ATTEMPTS
         self._lockout_duration = settings.ACCOUNT_LOCKOUT_MINUTES
@@ -101,7 +98,7 @@ class AuthService(metaclass=Singleton):
         self.user_service = UserService(self.db)
         
         # 初始化缓存管理器
-        self._cache_manager = CacheManager(self._redis_client.get_client())
+        self._cache_manager = CacheManager(self._redis)
         
         # 初始化验证码管理器
         self.captcha_manager = CaptchaManager(
@@ -119,7 +116,7 @@ class AuthService(metaclass=Singleton):
     @property
     def redis(self) -> redis.Redis:
         """获取Redis客户端"""
-        return self._redis_client.get_client()
+        return self._redis
     
     def add_token_to_blacklist(self, token: str) -> None:
         """将token加入黑名单"""
@@ -144,11 +141,11 @@ class AuthService(metaclass=Singleton):
     
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """验证密码"""
-        return self._pwd_context.verify(plain_password, hashed_password)
+        return verify_password(plain_password, hashed_password)
     
     def get_password_hash(self, password: str) -> str:
         """获取密码哈希值"""
-        return self._pwd_context.hash(password)
+        return get_password_hash(password)
     
     def create_tokens(self, user: User) -> TokenResponse:
         """创建访问令牌和刷新令牌"""
@@ -323,7 +320,7 @@ class AuthService(metaclass=Singleton):
                 )
             
             # 验证密码
-            if not self.verify_password(password, user.password):
+            if not self.verify_password(password, user.password_hash):
                 auth_logger.warning(f"密码验证失败 - 用户名: {username}")
                 self._record_login_attempt(user, False, "密码错误")
                 raise HTTPException(
@@ -528,7 +525,7 @@ class AuthService(metaclass=Singleton):
         try:
             # 确保Redis连接有效
             if not check_redis_alive(self.redis):
-                self.redis = get_redis_client()
+                self.redis = get_redis()
                 self.cache_manager = get_cache_manager()
                 self.captcha_manager = get_captcha_manager()
             
